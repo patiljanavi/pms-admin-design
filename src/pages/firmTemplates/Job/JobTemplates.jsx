@@ -6,7 +6,7 @@ import { htmlToText } from '../../../components/TextEditor';
 import {
   BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection,
 } from '../../../components/TableSelection';
-import { Avatar, Modal, cx, initials } from '../../../components/ui';
+import {  Modal, cx,  } from '../../../components/ui';
 import { useData } from '../../../context/DataContext';
 import {  TASK_PRIORITIES, describeDates } from '../../../data/taskTemplates';
 import { statusOptionsFrom } from './Jobtemplateform';

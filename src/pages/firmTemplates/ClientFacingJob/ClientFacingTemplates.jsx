@@ -1,13 +1,5 @@
-
 import { useEffect, useMemo, useState } from 'react';
-import {
-  FiArrowDown,
-  FiArrowUp,
-  FiDownload,
-  FiEdit2,
-  FiTrash2,
-  FiSearch,
-} from 'react-icons/fi';
+import { FiDownload, FiEdit2, FiTrash2, FiSearch } from 'react-icons/fi';
 
 import Pagination, { usePagination } from '../../../components/Pagination';
 import { Modal, cx } from '../../../components/ui';
@@ -33,14 +25,10 @@ const fmtDate = (date) =>
     : '—';
 
 export default function ClientFacingTemplates() {
-  const {
-    clientFacingJobs,
-    deleteClientFacingJobs,
-  } = useData();
+  const { clientFacingJobs, deleteClientFacingJobs } = useData();
 
   const [q, setQ] = useState('');
   const [colors, setColors] = useState([]);
-  const [sort, setSort] = useState({ key: 'label', dir: 'asc' });
   const [drawer, setDrawer] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState('');
@@ -71,34 +59,22 @@ export default function ClientFacingTemplates() {
     [clientFacingJobs]
   );
 
-  // Search, color filter, selected-only filter, and sorting
+  // Search, color filter, selected-only filter, sorted by name
   const filtered = useMemo(() => {
     const search = q.trim().toLowerCase();
 
-    const list = clientFacingJobs.filter(
-      (job) =>
-        (!search ||
-          `${job.label} ${job.description || ''}`
-            .toLowerCase()
-            .includes(search)) &&
-        (!colors.length ||
-          colors.includes(job.color?.toUpperCase())) &&
-        (!selectedOnly || selection.has(job.value))
-    );
-
-    const direction = sort.dir === 'asc' ? 1 : -1;
-
-    return [...list].sort((a, b) => {
-      if (sort.key === 'created') {
-        return (
-          (a.createdAt || '').localeCompare(b.createdAt || '') *
-          direction
-        );
-      }
-
-      return a.label.localeCompare(b.label) * direction;
-    });
-  }, [clientFacingJobs, q, colors, selectedOnly, selection, sort]);
+    return clientFacingJobs
+      .filter(
+        (job) =>
+          (!search ||
+            `${job.label} ${job.description || ''}`
+              .toLowerCase()
+              .includes(search)) &&
+          (!colors.length || colors.includes(job.color?.toUpperCase())) &&
+          (!selectedOnly || selection.has(job.value))
+      )
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [clientFacingJobs, q, colors, selectedOnly, selection]);
 
   // Pagination
   const paging = usePagination(filtered, {
@@ -132,33 +108,6 @@ export default function ClientFacingTemplates() {
     setPage(1);
   };
 
-  // const sortBy = (key) => {
-  //   setSort((current) => ({
-  //     key,
-  //     dir:
-  //       current.key === key && current.dir === 'asc'
-  //         ? 'desc'
-  //         : 'asc',
-  //   }));
-  // };
-
-  // const SortIcon = ({ k }) => {
-  //   if (sort.key !== k) return null;
-
-  //   return sort.dir === 'asc' ? (
-  //     <FiArrowUp aria-hidden="true" />
-  //   ) : (
-  //     <FiArrowDown aria-hidden="true" />
-  //   );
-  // };
-
-  // const ariaSort = (key) =>
-  //   sort.key === key
-  //     ? sort.dir === 'asc'
-  //       ? 'ascending'
-  //       : 'descending'
-  //     : 'none';
-
   // Delete selected jobs
   const doDelete = () => {
     if (!confirm?.length) return;
@@ -181,13 +130,9 @@ export default function ClientFacingTemplates() {
       {/* Header */}
       <header className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <div className="text-sm text-muted">
-            Templates / Client Facing
-          </div>
+          <div className="text-sm text-muted">Templates / Client Facing</div>
 
-          <h1 className="mt-1 text-3xl font-bold">
-            Client Facing Templates
-          </h1>
+          <h1 className="mt-1 text-3xl font-bold">Client Facing Templates</h1>
 
           <p className="mt-1 text-muted">
             Templates for client-facing communications.
@@ -204,29 +149,20 @@ export default function ClientFacingTemplates() {
 
       {/* Summary */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        {[
-          ['Total templates', clientFacingJobs.length],
-       
-        ].map(([label, count]) => (
-          <div key={label} className="card p-4 sm:p-5">
-            <div className="text-sm text-muted">{label}</div>
-            <div className="mt-1.5 text-2xl font-bold">{count}</div>
+        <div className="card p-4 sm:p-5">
+          <div className="text-sm text-muted">Total templates</div>
+          <div className="mt-1.5 text-2xl font-bold">
+            {clientFacingJobs.length}
           </div>
-        ))}
+        </div>
       </div>
 
       {/* Search and color filters */}
       <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
         <label className="flex min-h-[42px] flex-[1_1_220px] items-center gap-2 rounded border border-line-strong px-3 focus-within:border-brand-600">
-          <FiSearch
-            size={18}
-            className="text-muted"
-            aria-hidden="true"
-          />
+          <FiSearch size={18} className="text-muted" aria-hidden="true" />
 
-          <span className="sr-only">
-            Search client-facing jobs
-          </span>
+          <span className="sr-only">Search client-facing jobs</span>
 
           <input
             value={q}
@@ -302,18 +238,15 @@ export default function ClientFacingTemplates() {
               className={barButton}
               disabled={selectedJobs.length === 0}
               onClick={() => {
-                downloadCsv(
-                  'client-facing-jobs-selected.csv',
-                  [
-                    ['Name', 'Color', 'Created', 'Description'],
-                    ...selectedJobs.map((job) => [
-                      job.label,
-                      job.color || '',
-                      job.createdAt || '',
-                      job.description || '',
-                    ]),
-                  ]
-                );
+                downloadCsv('client-facing-jobs-selected.csv', [
+                  ['Name', 'Color', 'Created', 'Description'],
+                  ...selectedJobs.map((job) => [
+                    job.label,
+                    job.color || '',
+                    job.createdAt || '',
+                    job.description || '',
+                  ]),
+                ]);
 
                 notify(`Exported ${selectedJobs.length} jobs`);
               }}
@@ -337,8 +270,8 @@ export default function ClientFacingTemplates() {
       {/* Client-facing job cards */}
       <div className="p-4 sm:p-5">
         {rows.length > 0 ? (
-          // <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
-         <div className="grid grid-cols-1 gap-4">   {rows.map((job) => {
+          <div className="grid grid-cols-1 gap-4">
+            {rows.map((job) => {
               const checked = selection.has(job.value);
 
               return (
@@ -365,9 +298,7 @@ export default function ClientFacingTemplates() {
                       <div className="flex items-start gap-2.5">
                         <span
                           className="mt-1.5 h-3 w-3 flex-none rounded-full ring-1 ring-black/10"
-                          style={{
-                            backgroundColor: job.color || '#9CA3AF',
-                          }}
+                          style={{ backgroundColor: job.color || '#9CA3AF' }}
                           aria-label={`Color ${job.color || 'default'}`}
                           title={job.color || 'Default color'}
                         />
@@ -377,21 +308,16 @@ export default function ClientFacingTemplates() {
                         </h3>
                       </div>
 
-                      {/* <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-muted">
-                        {job.description || 'No description provided.'}
-                      </p> */}
                       <p className="line-clamp-1 text-sm text-muted-foreground">
-  {job.description || '-'} 
-</p>
+                        {job.description || '-'}
+                      </p>
                     </div>
 
                     {/* Actions */}
                     <div className="flex flex-none items-center gap-1">
                       <button
                         type="button"
-                        onClick={() =>
-                          setDrawer({ clientFacingJob: job })
-                        }
+                        onClick={() => setDrawer({ clientFacingJob: job })}
                         aria-label={`Edit ${job.label}`}
                         title="Edit job"
                         className="flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink"
@@ -452,11 +378,7 @@ export default function ClientFacingTemplates() {
           onClose={() => setDrawer(null)}
           onSaved={(job, isNew) => {
             setDrawer(null);
-            notify(
-              isNew
-                ? `Created “${job.label}”`
-                : `Saved “${job.label}”`
-            );
+            notify(isNew ? `Created “${job.label}”` : `Saved “${job.label}”`);
           }}
           onDelete={(job) => setConfirm([job])}
         />
