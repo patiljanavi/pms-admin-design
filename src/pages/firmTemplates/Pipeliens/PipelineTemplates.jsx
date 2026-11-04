@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { FiCopy, FiDownload, FiEdit2, FiSearch, FiTrash2, FiZap } from 'react-icons/fi';
+import { FiCopy, FiDownload, FiSearch, FiTrash2, FiZap } from 'react-icons/fi';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import {
   BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection,

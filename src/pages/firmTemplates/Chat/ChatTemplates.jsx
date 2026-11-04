@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiBell, FiCheckSquare, FiCopy, FiDownload, FiEdit2, FiSearch, FiTrash2 } from 'react-icons/fi';
+import { FiBell, FiCheckSquare, FiCopy, FiDownload, FiSearch, FiTrash2 } from 'react-icons/fi';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import { htmlToText } from '../../../components/TextEditor';
 import {

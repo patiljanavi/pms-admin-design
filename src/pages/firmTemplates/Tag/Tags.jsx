@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiArrowDown, FiArrowUp, FiDownload, FiEdit2, FiTrash2 } from 'react-icons/fi';
+import { FiArrowDown, FiArrowUp, FiDownload, FiTrash2 } from 'react-icons/fi';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import { FiSearch } from 'react-icons/fi';
 import { Modal, Segmented, cx } from '../../../components/ui';

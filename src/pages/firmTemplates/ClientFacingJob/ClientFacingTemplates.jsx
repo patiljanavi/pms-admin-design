@@ -132,32 +132,32 @@ export default function ClientFacingTemplates() {
     setPage(1);
   };
 
-  const sortBy = (key) => {
-    setSort((current) => ({
-      key,
-      dir:
-        current.key === key && current.dir === 'asc'
-          ? 'desc'
-          : 'asc',
-    }));
-  };
+  // const sortBy = (key) => {
+  //   setSort((current) => ({
+  //     key,
+  //     dir:
+  //       current.key === key && current.dir === 'asc'
+  //         ? 'desc'
+  //         : 'asc',
+  //   }));
+  // };
 
-  const SortIcon = ({ k }) => {
-    if (sort.key !== k) return null;
+  // const SortIcon = ({ k }) => {
+  //   if (sort.key !== k) return null;
 
-    return sort.dir === 'asc' ? (
-      <FiArrowUp aria-hidden="true" />
-    ) : (
-      <FiArrowDown aria-hidden="true" />
-    );
-  };
+  //   return sort.dir === 'asc' ? (
+  //     <FiArrowUp aria-hidden="true" />
+  //   ) : (
+  //     <FiArrowDown aria-hidden="true" />
+  //   );
+  // };
 
-  const ariaSort = (key) =>
-    sort.key === key
-      ? sort.dir === 'asc'
-        ? 'ascending'
-        : 'descending'
-      : 'none';
+  // const ariaSort = (key) =>
+  //   sort.key === key
+  //     ? sort.dir === 'asc'
+  //       ? 'ascending'
+  //       : 'descending'
+  //     : 'none';
 
   // Delete selected jobs
   const doDelete = () => {

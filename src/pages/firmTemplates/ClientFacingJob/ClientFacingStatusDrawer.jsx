@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { FiCheck, FiTag, FiTrash2, FiX } from 'react-icons/fi';
 import { Drawer, cx } from '../../../components/ui';
 import { useData } from '../../../context/DataContext';
-import TagChip, { TAG_PALETTE, isHex, colorName, textOn } from '../../../components/TagChip';
+import  { TAG_PALETTE, colorName,  } from '../../../components/TagChip';
 /**
  * One drawer for creating and editing a client-facing job.
  * - job: the job to edit, or null to create a new one

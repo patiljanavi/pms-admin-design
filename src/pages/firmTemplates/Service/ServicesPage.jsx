@@ -577,7 +577,7 @@
 //   );
 // }
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { FiCopy, FiEdit2, FiFolder, FiPlus, FiSearch, FiTrash2, FiX } from 'react-icons/fi';
+import { FiFolder, FiPlus, FiSearch, FiX } from 'react-icons/fi';
 import { RATE_SUFFIX, RATE_TYPES } from '../../../data/servicesData';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import { useData } from '../../../context/DataContext';

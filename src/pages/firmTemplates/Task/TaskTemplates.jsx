@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiCopy, FiDownload, FiEdit2, FiSearch, FiTrash2 } from 'react-icons/fi';
+import { FiCopy, FiDownload, FiSearch, FiTrash2 } from 'react-icons/fi';
 import MultiSelect from '../../../components/MultiSelect';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import TagChip, { chipStyle } from '../../../components/TagChip';

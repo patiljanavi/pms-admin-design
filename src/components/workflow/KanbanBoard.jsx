@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FiAlertCircle, FiCalendar, FiClock, FiExternalLink, FiMove, FiPlus, FiZap } from 'react-icons/fi';
+import { FiAlertCircle, FiCalendar, FiClock, FiExternalLink, FiMove, FiZap } from 'react-icons/fi';
 import RowActionsMenu from '../RowActionsMenu';
 import TagChip from '../TagChip';
 import { Avatar, cx, initials } from '../ui';

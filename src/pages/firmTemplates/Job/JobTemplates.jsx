@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiCopy, FiDownload, FiEdit2, FiMessageSquare, FiSearch, FiTrash2 } from 'react-icons/fi';
+import { FiCopy, FiDownload,  FiSearch, FiTrash2 } from 'react-icons/fi';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import { htmlToText } from '../../../components/TextEditor';
 import {
@@ -8,22 +8,12 @@ import {
 } from '../../../components/TableSelection';
 import { Avatar, Modal, cx, initials } from '../../../components/ui';
 import { useData } from '../../../context/DataContext';
-import { PRIORITY_STYLE, TASK_PRIORITIES, describeDates } from '../../../data/taskTemplates';
+import {  TASK_PRIORITIES, describeDates } from '../../../data/taskTemplates';
 import { statusOptionsFrom } from './Jobtemplateform';
 import RowActionsMenu from '../../../components/RowActionsMenu';
 
 const LIST_PATH = '/firmtemp/templates/jobs';
-const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
 
-function Assignees({ names }) {
-  if (!names?.length) return <span className="text-muted">Unassigned</span>;
-  return (
-    <div className="flex items-center gap-2" title={names.join(', ')}>
-      <div className="flex -space-x-2">{names.slice(0, 3).map((n) => <span key={n} className="rounded-full ring-2 ring-surface"><Avatar text={initials(n)} size="sm" tone="solid" /></span>)}</div>
-      {names.length > 3 && <span className="text-sm text-muted">+{names.length - 3}</span>}
-    </div>
-  );
-}
 
 /** Firm Templates → Jobs: table of job templates. New / Edit open JobTemplateForm (same as Tasks and Emails). */
 export default function JobTemplates() {
@@ -144,7 +134,7 @@ export default function JobTemplates() {
             <tbody>
               {rows.map((t) => {
                 const checked = selection.has(t.id);
-                const st = t.clientFacingStatus ? statusById.get(String(t.selectedJob)) : null;
+                // const st = t.clientFacingStatus ? statusById.get(String(t.selectedJob)) : null;
                 return (
                   <tr key={t.id} aria-selected={checked} className={cx('border-t border-line-soft', checked ? 'bg-brand-50' : 'hover:bg-subtle/60')}>
                     <td className="py-3 pl-5 pr-1"><SelectCheckbox label={`Select ${t.templatename}`} checked={checked} onChange={() => selection.toggle(t.id)} /></td>
