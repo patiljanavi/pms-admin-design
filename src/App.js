@@ -18,7 +18,7 @@ import AccountWorkflow from './pages/accountDash/AccountWorkflow';              
 import WorkflowPipelines, { WorkflowPipelinesLayout } from './pages/workflow/WorkflowPipelines';   // ← Workflow → Pipelines
 import PipelineBoard from './pages/workflow/PipelineBoard';                          // ← Kanban board page
 import {
-  AccountCommunication, AccountDocuments, AccountEmail, AccountInfo, AccountInvoices, AccountNotes, AccountOrganizers, AccountOverview, AccountProposals,
+  AccountCommunication, AccountDocuments, AccountEmail, AccountInfo, AccountNotes, AccountOrganizers, AccountOverview, AccountProposals,
 } from './pages/accountDash/tabs';
 import FirmTemplatesLayout from './pages/firmTemplates/FirmTemplatesLayoutold';
 import TaskTemplates from './pages/firmTemplates/Task/TaskTemplates';

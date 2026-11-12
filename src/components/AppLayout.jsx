@@ -9,9 +9,7 @@ import Sidebar, { MOD } from './Sidebar';
 import CommandMenu from './CommandMenu';
 import { Modal } from './ui';
 import { Sheet, SheetContent, SheetTitle } from './ui/sheet';
-import { useOutletContext } from 'react-router-dom';
 
-import { toast } from './ui/sonner';
 import AddAccountDrawer from '../pages/Accounts-Contacts/AddAccountDrawer';
 import ContactDrawer from '../pages/Accounts-Contacts/ContactDrawer';
 import JobDrawer from './workflow/JobDrawer';
@@ -33,7 +31,7 @@ const typing = (el) => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$
 /** Signed-in frame: sidebar · header (breadcrumbs, search, New) · page. */
 export default function AppLayout() {
   const { user, signOut } = useAuth();
-    const { invoices = [], nextInvoiceNumber, createInvoice, updateInvoice, deleteInvoices, setInvoiceStatus, printInvoice, downloadInvoice } = useData();
+    const {  nextInvoiceNumber, createInvoice, updateInvoice,  } = useData();
    
   const navigate = useNavigate();
   const { pathname } = useLocation();
