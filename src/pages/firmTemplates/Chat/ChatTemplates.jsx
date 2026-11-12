@@ -1,18 +1,23 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiBell, FiCheckSquare, FiCopy, FiDownload, FiSearch, FiTrash2 } from 'react-icons/fi';
+import { Bell, Copy, Download, ListChecks, MessageSquare, Plus, SearchX, Send, Trash2, Users, X } from 'lucide-react';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import { htmlToText } from '../../../components/TextEditor';
+import RowActionsMenu from '../../../components/RowActionsMenu';
 import {
   BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection,
 } from '../../../components/TableSelection';
-import { Avatar, Modal, cx, initials } from '../../../components/ui';
+import { DataCard, EmptyState, SearchInput, StatCard } from '../../../components/page';
+import { Modal } from '../../../components/ui';
+import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { ToastBridge } from '../../../components/ui/sonner';
 import { useData } from '../../../context/DataContext';
 import { SENDERS } from '../../../data/emailtemplates';
-import RowActionsMenu from '../../../components/RowActionsMenu';
+import { Dash, ListHeader, NameCell, PersonCell, SelectFilter, SortHead, Tip, fmtDate, sortRows } from '../templateKit';
 
 const LIST_PATH = '/firmtemp/templates/chats';
-const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
 
 /** Firm Templates → Chats: table of chat templates. New / Edit open ChatTemplateForm (same as Tasks, Emails, Jobs). */
 export default function ChatTemplates() {
@@ -23,6 +28,7 @@ export default function ChatTemplates() {
   const [q, setQ] = useState('');
   const [from, setFrom] = useState('All');
   const [reminders, setReminders] = useState('All');   // All · On · Off
+  const [sort, setSort] = useState(null);
   const [confirm, setConfirm] = useState(null);
   const [toast, setToast] = useState('');
   const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2600); };
@@ -37,11 +43,16 @@ export default function ChatTemplates() {
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return chatTemplates.filter((t) => (from === 'All' || t.selecteduser?.value === from)
+    const list = chatTemplates.filter((t) => (from === 'All' || t.selecteduser?.value === from)
       && (reminders === 'All' || (reminders === 'On' ? t.sendReminders : !t.sendReminders))
       && (!selectedOnly || selection.has(t.id))
       && (!s || `${t.templateName} ${t.inputText} ${htmlToText(t.description)} ${t.selecteduser?.label || ''}`.toLowerCase().includes(s)));
-  }, [chatTemplates, q, from, reminders, selectedOnly, selection]);
+    return sortRows(list, sort, {
+      name: (t) => t.templateName.toLowerCase(),
+      from: (t) => t.selecteduser?.label || '',
+      updated: (t) => t.updatedAt || '',
+    });
+  }, [chatTemplates, q, from, reminders, selectedOnly, selection, sort]);
 
   const paging = usePagination(filtered, { initialSize: 10, storageKey: 'chat-templates' });
   const { pageItems: rows, setPage } = paging;
@@ -49,7 +60,9 @@ export default function ChatTemplates() {
   const filtersOn = q || from !== 'All' || reminders !== 'All';
   const reset = () => { setQ(''); setFrom('All'); setReminders('All'); setSelectedOnly(false); setPage(1); };
 
-  if (!duplicateChatTemplates) return <div role="alert" className="card bg-danger-50 p-6 font-semibold text-danger-700">Chat templates are not set up in DataContext.js</div>;
+  if (!duplicateChatTemplates) {
+    return <div role="alert" className="rounded-xl border border-danger-100 bg-danger-50 p-6 text-sm font-medium text-danger-700">Chat templates are not set up in DataContext.js</div>;
+  }
 
   const openNew = () => navigate(`${LIST_PATH}/new`);
   const openEdit = (t) => navigate(`${LIST_PATH}/${t.id}`);
@@ -66,121 +79,130 @@ export default function ChatTemplates() {
     notify(`Exported ${items.length} templates`);
   };
 
-  const stats = [
-    ['Total templates', chatTemplates.length],
-    ['With reminders', chatTemplates.filter((t) => t.sendReminders).length],
-    ['With client tasks', chatTemplates.filter((t) => t.SubtaskSwitch && t.subtasks?.length).length],
-    ['Senders', new Set(chatTemplates.map((t) => t.selecteduser?.value).filter(Boolean)).size],
-  ];
+  const withReminders = chatTemplates.filter((t) => t.sendReminders).length;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold">Chat templates</h2>
-          <p className="text-muted">Messages for client chats, with reminders and a checklist of client tasks.</p>
-        </div>
-        <button className="btn-primary" onClick={openNew}>+ New chat template</button>
+      <ListHeader
+        title="Chat templates"
+        description="Messages for client chats, with reminders and a checklist of client tasks."
+        actions={<>
+          <Button onClick={openNew} aria-label="+ New chat template"><Plus />New chat template</Button>
+        </>}
+      />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <StatCard label="Total templates" value={chatTemplates.length} icon={MessageSquare} />
+        <StatCard label="With reminders" value={withReminders} icon={Bell} tone="warning" active={reminders === 'On'}
+          hint={reminders === 'On' ? 'Showing only these · click to clear' : 'Click to filter'}
+          onClick={() => { setReminders((cur) => (cur === 'On' ? 'All' : 'On')); setPage(1); }} />
+        <StatCard label="With client tasks" value={chatTemplates.filter((t) => t.SubtaskSwitch && t.subtasks?.length).length} icon={ListChecks} />
+        <StatCard label="Senders" value={new Set(chatTemplates.map((t) => t.selecteduser?.value).filter(Boolean)).size} icon={Users} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map(([label, n]) => (
-          <div key={label} className="card p-4 sm:p-5"><div className="text-sm text-muted">{label}</div><div className="mt-1.5 text-2xl font-bold">{n}</div></div>
-        ))}
-      </div>
+      <DataCard
+        toolbar={<>
+          <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} label="Search chat templates"
+            placeholder="Search name, subject, message, sender…" className="h-8 w-full sm:w-72" />
+          <SelectFilter label="From" icon={Send} value={from} onChange={(v) => { setFrom(v); setPage(1); }}
+            options={[{ value: 'All', label: 'All' }, ...SENDERS]} />
+          <SelectFilter label="Reminders" icon={Bell} value={reminders} onChange={(v) => { setReminders(v); setPage(1); }} options={['All', 'On', 'Off']} />
+          {filtersOn ? <Button variant="ghost" size="sm" onClick={reset} className="text-muted-foreground">Reset<X /></Button> : null}
+          <span className="ml-auto hidden text-sm tabular-nums text-muted-foreground md:inline">{filtered.length} of {chatTemplates.length}</span>
+        </>}
+        footer={filtered.length > 0 && <Pagination {...paging} label="templates" />}
+      >
+        <Table className="min-w-[1000px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10"><HeaderCheckbox selection={selection} pageIds={rows.map((t) => t.id)} /></TableHead>
+              <SortHead label="Template" col="name" sort={sort} setSort={setSort} />
+              <SortHead label="From" col="from" sort={sort} setSort={setSort} />
+              <TableHead>Subject</TableHead>
+              <TableHead>Reminders</TableHead>
+              <TableHead>Client tasks</TableHead>
+              <SortHead label="Updated" col="updated" sort={sort} setSort={setSort} />
+              <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((t) => {
+              const checked = selection.has(t.id);
+              const tasks = t.SubtaskSwitch ? (t.subtasks || []) : [];
+              return (
+                <TableRow key={t.id} data-state={checked ? 'selected' : undefined}>
+                  <TableCell><SelectCheckbox label={`Select ${t.templateName}`} checked={checked} onChange={() => selection.toggle(t.id)} /></TableCell>
+                  <TableCell className="max-w-[280px]">
+                    <NameCell icon={MessageSquare} name={t.templateName} preview={t.description ? htmlToText(t.description) : ''} onOpen={() => openEdit(t)} />
+                  </TableCell>
+                  <TableCell><PersonCell name={t.selecteduser?.label} /></TableCell>
+                  <TableCell className="max-w-[260px] truncate text-sm text-muted-foreground">{t.inputText || <Dash />}</TableCell>
+                  <TableCell>
+                    {t.sendReminders ? (
+                      <Tip label={`Every ${t.daysuntilNextReminder} days, up to ${t.noOfReminder} times`}>
+                        <span className="inline-flex"><Badge variant="warning"><Bell />Every {t.daysuntilNextReminder}d · {t.noOfReminder}×</Badge></span>
+                      </Tip>
+                    ) : <Badge variant="neutral">Off</Badge>}
+                  </TableCell>
+                  <TableCell className="text-sm">
+                    {tasks.length ? (
+                      <Tip label={tasks.map((s) => s.text).join(', ')}>
+                        <span className="inline-flex items-center gap-1.5 whitespace-nowrap"><ListChecks className="size-3.5 text-muted-foreground" aria-hidden="true" />{tasks.length} {tasks.length === 1 ? 'task' : 'tasks'}</span>
+                      </Tip>
+                    ) : <Dash />}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-sm text-muted-foreground">{fmtDate(t.updatedAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <RowActionsMenu label={t.templateName} onEdit={() => openEdit(t)}
+                      onDuplicate={() => { duplicateChatTemplates([t.id]); notify(`Duplicated “${t.templateName}”`); }}
+                      onDelete={() => setConfirm([t])} />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {filtered.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={8}>
+                  {chatTemplates.length ? (
+                    <EmptyState icon={SearchX} title="No chat templates match" description="Try a different search or remove some filters."
+                      action={<Button variant="outline" onClick={reset}>Clear filters</Button>} />
+                  ) : (
+                    <EmptyState icon={MessageSquare} title="No chat templates yet" description="Save messages you send clients often, with automatic reminders and a task checklist."
+                      action={<Button onClick={openNew}><Plus />New chat template</Button>} />
+                  )}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </DataCard>
 
-      <section className="card overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
-          <label className="flex min-h-[44px] flex-[1_1_240px] items-center gap-2 rounded border border-line-strong px-3 focus-within:border-brand-600">
-            <FiSearch size={18} className="text-muted" aria-hidden="true" /><span className="sr-only">Search chat templates</span>
-            <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search name, subject, message, sender" className="min-w-0 flex-1 bg-transparent outline-none" />
-          </label>
-          <label className="flex items-center gap-2 text-muted">From
-            <select value={from} onChange={(e) => { setFrom(e.target.value); setPage(1); }} className="input min-h-[44px] w-auto">
-              <option value="All">All</option>
-              {SENDERS.map((u) => <option key={u.value} value={u.value}>{u.label}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-muted">Reminders
-            <select value={reminders} onChange={(e) => { setReminders(e.target.value); setPage(1); }} className="input min-h-[44px] w-auto">
-              {['All', 'On', 'Off'].map((o) => <option key={o}>{o}</option>)}
-            </select>
-          </label>
-          {filtersOn ? <button onClick={reset} className="btn-link px-2">Clear filters</button> : null}
-        </div>
-
-        <BulkBar count={selection.count} total={filtered.length}
-          onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
-          filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-          actions={<>
-            <button className={barButton} onClick={() => { duplicateChatTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><FiCopy aria-hidden="true" /> Duplicate</button>
-            <button className={barButton} onClick={() => exportCsv(selected)}><FiDownload aria-hidden="true" /> Export</button>
-            <button className={barDanger} onClick={() => setConfirm(selected)}><FiTrash2 aria-hidden="true" /> Delete</button>
-          </>}
-        />
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] border-collapse">
-            <thead>
-              <tr className="bg-subtle text-left text-xs uppercase tracking-wide text-muted">
-                <th className="w-12 py-3 pl-5 pr-1"><HeaderCheckbox selection={selection} pageIds={rows.map((t) => t.id)} /></th>
-                <th className="px-3 py-3 font-semibold">Template name</th>
-                <th className="px-3 py-3 font-semibold">From</th>
-                <th className="px-3 py-3 font-semibold">Subject</th>
-                <th className="px-3 py-3 font-semibold">Reminders</th>
-                <th className="px-3 py-3 font-semibold">Client tasks</th>
-                <th className="px-3 py-3 font-semibold">Updated</th>
-                <th className="px-5 py-3 text-right font-semibold"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((t) => {
-                const checked = selection.has(t.id);
-                const taskCount = t.SubtaskSwitch ? (t.subtasks || []).length : 0;
-                return (
-                  <tr key={t.id} aria-selected={checked} className={cx('border-t border-line-soft', checked ? 'bg-brand-50' : 'hover:bg-subtle/60')}>
-                    <td className="py-3 pl-5 pr-1"><SelectCheckbox label={`Select ${t.templateName}`} checked={checked} onChange={() => selection.toggle(t.id)} /></td>
-                    <td className="max-w-[260px] px-3 py-3">
-                      <button onClick={() => openEdit(t)} className="text-left font-semibold hover:text-brand-600 hover:underline">{t.templateName}</button>
-                      {t.description && <div className="truncate text-sm text-muted">{htmlToText(t.description)}</div>}
-                    </td>
-                    <td className="px-3 py-3">{t.selecteduser ? <span className="flex items-center gap-2"><Avatar text={initials(t.selecteduser.label)} size="sm" />{t.selecteduser.label}</span> : <span className="text-muted">—</span>}</td>
-                    <td className="max-w-[260px] truncate px-3 py-3 text-sm">{t.inputText}</td>
-                    <td className="px-3 py-3 text-sm">{t.sendReminders
-                      ? <span className="inline-flex items-center gap-1.5"><FiBell className="text-warning-700" aria-hidden="true" />Every {t.daysuntilNextReminder}d · {t.noOfReminder}×</span>
-                      : <span className="text-muted">Off</span>}</td>
-                    <td className="px-3 py-3 text-sm">{taskCount ? <span className="inline-flex items-center gap-1.5"><FiCheckSquare aria-hidden="true" />{taskCount}</span> : <span className="text-muted">—</span>}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-muted">{fmtDate(t.updatedAt)}</td>
-                    <td className="px-5 py-3">
-                      <RowActionsMenu
-                        label={t.templateName}
-                        onEdit={() => openEdit(t)}
-                        onDuplicate={() => { duplicateChatTemplates([t.id]); notify(`Duplicated “${t.templateName}”`); }}
-                        onDelete={() => setConfirm([t])}
-                      />
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="flex flex-col items-center gap-3 p-12 text-center text-muted">
-              {chatTemplates.length ? 'No chat templates match these filters.' : 'No chat templates yet.'}
-              {chatTemplates.length ? <button onClick={reset} className="btn-secondary">Clear filters</button> : <button onClick={openNew} className="btn-primary">+ New chat template</button>}
-            </div>
-          )}
-        </div>
-        <Pagination {...paging} label="templates" />
-      </section>
+      <BulkBar count={selection.count} total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <button type="button" className={barButton} onClick={() => { duplicateChatTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
+          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
 
       {confirm && (
-        <Modal title={confirm.length === 1 ? `Delete “${confirm[0].templateName}”?` : `Delete ${confirm.length} templates?`} onClose={() => setConfirm(null)}
-          footer={<><button className="btn-secondary" onClick={() => setConfirm(null)}>Cancel</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={remove}>Delete</button></>}>
-          <p className="text-muted">Chats already sent from {confirm.length === 1 ? 'this template' : 'these templates'} are not affected.</p>
+        <Modal title={confirm.length === 1 ? `Delete “${confirm[0].templateName}”?` : `Delete ${confirm.length} templates?`}
+          description={`Chats already sent from ${confirm.length === 1 ? 'this template' : 'these templates'} are not affected.`}
+          onClose={() => setConfirm(null)}
+          footer={<><Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button><Button variant="destructive" onClick={remove}>Delete</Button></>}>
+          <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border">
+            {confirm.map((t) => (
+              <li key={t.id} className="flex items-center justify-between gap-3 px-3 py-2 text-sm">
+                <span className="truncate font-medium">{t.templateName}</span>
+                <span className="truncate text-muted-foreground">{t.inputText}</span>
+              </li>
+            ))}
+          </ul>
         </Modal>
       )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
+      <ToastBridge message={toast} />
     </div>
   );
 }

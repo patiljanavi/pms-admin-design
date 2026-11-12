@@ -1,9 +1,14 @@
 import { useState } from 'react';
-import { FiCheck, FiTag, FiTrash2 } from 'react-icons/fi';
-import { Drawer, cx } from './ui';
-import { FiX } from 'react-icons/fi';
+import { Check, CircleAlert, Pipette, Tag, Trash2 } from 'lucide-react';
+import { CloseButton, Drawer } from './ui';
+import { Button } from './ui/button';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Textarea } from './ui/textarea';
+import { SimpleTooltip } from './ui/tooltip';
 import TagChip, { TAG_PALETTE, chipStyle, colorName, isHex, textOn } from './TagChip';
 import { useData } from '../context/DataContext';
+import { cn } from 'lib/utils';
 
 /**
  * One drawer for both creating and editing a tag.
@@ -37,117 +42,102 @@ export default function TagDrawer({ tag, onClose, onSaved, onDelete, usage = 0 }
   };
 
   const preview = { value: 'preview', label: label.trim() || 'Tag name', color };
+  const custom = !TAG_PALETTE.some((p) => p.hex.toLowerCase() === color.toLowerCase());
+  const hexBad = !isHex(hexInput);
 
   return (
     <Drawer onClose={onClose} label={isNew ? 'New tag' : `Edit tag ${tag.label}`} width="max-w-[480px]">
-      <div className="flex items-center gap-4 border-b border-line p-5 sm:p-6">
-        <span className="flex h-14 w-14 flex-none items-center justify-center rounded-full" style={chipStyle(color)} aria-hidden="true"><FiTag size={22} /></span>
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-xl font-bold">{isNew ? 'New tag' : 'Edit tag'}</h2>
-          <div className="truncate text-muted">{isNew ? 'Create a label to group accounts' : `Used by ${usage} account${usage === 1 ? '' : 's'}`}</div>
+      {/* Header */}
+      <div className="flex flex-none items-start gap-3.5 border-b px-6 py-5">
+        <span className="flex size-11 flex-none items-center justify-center rounded-xl transition-colors" style={chipStyle(color)} aria-hidden="true"><Tag className="size-5" /></span>
+        <div className="min-w-0 flex-1 pt-0.5">
+          <h2 className="truncate text-lg font-semibold tracking-tight">{isNew ? 'New tag' : 'Edit tag'}</h2>
+          <p className="truncate text-sm text-muted-foreground">{isNew ? 'Create a label to group accounts.' : `Used by ${usage} account${usage === 1 ? '' : 's'}`}</p>
         </div>
-        <button onClick={onClose} aria-label="Close" className="flex h-10 w-10 flex-none items-center justify-center rounded text-muted hover:bg-subtle"><FiX size={20} /></button>
+        <CloseButton onClick={onClose} />
       </div>
 
-      <form className="flex flex-1 flex-col gap-6 p-5 sm:p-6" onSubmit={(e) => { e.preventDefault(); save(); }} noValidate>
+      <form className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5" onSubmit={(e) => { e.preventDefault(); save(); }} noValidate>
         {/* Preview */}
-        <div className="rounded-lg border border-line bg-subtle p-4">
-          <div className="mb-2.5 text-xs font-semibold text-muted">Preview</div>
-          <div className="flex flex-wrap items-center gap-3">
+        <div className="rounded-xl border bg-subtle p-4">
+          <div className="mb-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">Preview</div>
+          <div className="flex flex-wrap items-center gap-3 rounded-lg border bg-card px-3 py-2.5 shadow-xs">
             <TagChip tag={preview} />
-            <span className="text-sm text-muted">as it appears in the accounts table</span>
+            <TagChip tag={preview} size="xs" />
+            <span className="ml-auto text-xs text-muted-foreground">as it appears in tables</span>
           </div>
         </div>
 
-        <label className="field-label">Name *
-          <input className={cx('input', error && 'border-danger-700')} value={label} maxLength={30} autoFocus
+        {/* Name */}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="tag-name">Name<span className="ml-0.5 text-danger-700" aria-hidden="true">*</span></Label>
+          <Input id="tag-name" value={label} maxLength={30} autoFocus aria-invalid={!!error || undefined} aria-describedby="tag-name-help"
             onChange={(e) => { setLabel(e.target.value); setError(''); }} placeholder="e.g. Quarterly filing" />
-          <span className="flex justify-between text-xs font-normal text-muted">
-            <span className={cx(error && 'font-semibold text-danger-700')}>{error || 'Short and clear works best.'}</span>
-            <span>{label.length}/30</span>
-          </span>
-        </label>
+          <div id="tag-name-help" className="flex justify-between gap-3 text-xs">
+            {error
+              ? <span className="flex items-center gap-1 text-danger-700"><CircleAlert className="size-3.5 flex-none" aria-hidden="true" />{error}</span>
+              : <span className="text-muted-foreground">Short and clear works best.</span>}
+            <span className={cn('tabular-nums text-muted-foreground', label.length >= 30 && 'text-warning-700')}>{label.length}/30</span>
+          </div>
+        </div>
 
-        {/* <fieldset>
-          <legend className="mb-2.5 text-sm font-semibold">Color</legend>
+        {/* Colour */}
+        <fieldset className="flex flex-col gap-3">
+          <legend className="mb-1.5 flex w-full items-center justify-between text-sm font-medium">
+            Color
+            <span className="text-xs font-normal text-muted-foreground">{colorName(color)}</span>
+          </legend>
+
           <div role="radiogroup" aria-label="Tag color" className="grid grid-cols-6 gap-2.5">
             {TAG_PALETTE.map((p) => {
               const on = color.toLowerCase() === p.hex.toLowerCase();
               return (
-                <button key={p.hex} type="button" role="radio" aria-checked={on} aria-label={p.name} title={p.name} onClick={() => pickColor(p.hex)}
-                  className={cx('flex aspect-square items-center justify-center rounded-full transition-transform', on ? 'ring-2 ring-ink ring-offset-2' : 'hover:scale-105')}
-                  style={{ backgroundColor: p.hex, color: textOn(p.hex) }}>
-                  {on && <FiCheck size={18} aria-hidden="true" />}
-                </button>
+                <SimpleTooltip key={p.hex} label={p.name}>
+                  <button type="button" role="radio" aria-checked={on} aria-label={p.name} onClick={() => pickColor(p.hex)}
+                    className={cn('flex aspect-square w-full items-center justify-center rounded-lg shadow-xs ring-1 ring-inset ring-foreground/10 transition-all duration-150',
+                      'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+                      on ? 'scale-100 outline outline-2 outline-offset-2 outline-foreground/70' : 'hover:scale-[1.06] hover:shadow-sm')}
+                    style={{ backgroundColor: p.hex, color: textOn(p.hex) }}>
+                    {on && <Check className="size-4" strokeWidth={3} aria-hidden="true" />}
+                  </button>
+                </SimpleTooltip>
               );
             })}
           </div>
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm font-semibold">Custom
-              <input type="color" value={color} onChange={(e) => pickColor(e.target.value.toUpperCase())}
-                className="h-10 w-12 cursor-pointer rounded border border-line-strong bg-surface p-1" aria-label="Pick a custom color" />
-            </label>
-            <input aria-label="Hex color" value={hexInput} onChange={(e) => onHex(e.target.value.trim())} maxLength={7}
-              className={cx('input w-32 font-mono uppercase', !isHex(hexInput) && 'border-danger-700')} />
-            <span className="text-sm text-muted">{colorName(color)}</span>
+
+          <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-subtle p-2.5">
+            <SimpleTooltip label="Pick a custom color">
+              <label className={cn('relative flex size-9 flex-none cursor-pointer items-center justify-center overflow-hidden rounded-md shadow-xs ring-1 ring-inset ring-foreground/10',
+                custom && 'outline outline-2 outline-offset-2 outline-foreground/70')} style={{ backgroundColor: color, color: textOn(color) }}>
+                <Pipette className="size-4" aria-hidden="true" />
+                <input type="color" value={color} onChange={(e) => pickColor(e.target.value.toUpperCase())}
+                  className="absolute inset-0 cursor-pointer opacity-0" aria-label="Pick a custom color" />
+              </label>
+            </SimpleTooltip>
+            <Input aria-label="Hex color" value={hexInput} onChange={(e) => onHex(e.target.value.trim())} maxLength={7}
+              aria-invalid={hexBad || undefined} className="h-9 w-28 font-mono uppercase" />
+            <span className="text-sm text-muted-foreground">{custom ? 'Custom color' : 'From the palette'}</span>
           </div>
-          {!isHex(hexInput) && <p className="mt-1.5 text-sm text-danger-700">Use a 6-digit hex code like #1D4ED8.</p>}
-        </fieldset> */}
-<fieldset>
-  <legend className="mb-2.5 text-sm font-semibold">Color</legend>
+          {hexBad && <p className="flex items-center gap-1 text-xs text-danger-700"><CircleAlert className="size-3.5" aria-hidden="true" />Use a 6-digit hex code like #1D4ED8.</p>}
+        </fieldset>
 
-  <div role="radiogroup" aria-label="Tag color" className="flex flex-wrap items-center gap-2.5">
-    {TAG_PALETTE.map((p) => {
-      const on = color.toLowerCase() === p.hex.toLowerCase();
-      return (
-        <button
-          key={p.hex}
-          type="button"
-          role="radio"
-          aria-checked={on}
-          aria-label={p.name}
-          title={p.name}
-          onClick={() => pickColor(p.hex)}
-          className={cx(
-            'flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-all duration-150',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2',
-            on
-              ? 'ring-2 ring-ink ring-offset-2 ring-offset-surface'
-              : 'ring-1 ring-inset ring-black/10 hover:scale-110 hover:shadow-sm'
-          )}
-          style={{ backgroundColor: p.hex, color: textOn(p.hex) }}
-        >
-          {on && <FiCheck size={14} strokeWidth={3} aria-hidden="true" />}
-        </button>
-      );
-    })}
-  </div>
-
-  <div className="mt-4 flex flex-wrap items-center gap-3">
-    <label className="flex items-center gap-2 text-sm font-semibold">Custom
-      <input type="color" value={color} onChange={(e) => pickColor(e.target.value.toUpperCase())}
-        className="h-10 w-12 cursor-pointer rounded border border-line-strong bg-surface p-1" aria-label="Pick a custom color" />
-    </label>
-    <input aria-label="Hex color" value={hexInput} onChange={(e) => onHex(e.target.value.trim())} maxLength={7}
-      className={cx('input w-32 font-mono uppercase', !isHex(hexInput) && 'border-danger-700')} />
-    <span className="text-sm text-muted">{colorName(color)}</span>
-  </div>
-  {!isHex(hexInput) && <p className="mt-1.5 text-sm text-danger-700">Use a 6-digit hex code like #1D4ED8.</p>}
-</fieldset>
-        <label className="field-label">Description
-          <textarea className="input min-h-[84px] py-2.5" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="When should the team use this tag? (optional)" />
-        </label>
+        {/* Description */}
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="tag-desc">Description <span className="font-normal text-muted-foreground">(optional)</span></Label>
+          <Textarea id="tag-desc" className="min-h-[84px]" value={description} onChange={(e) => setDescription(e.target.value)} placeholder="When should the team use this tag?" />
+        </div>
 
         <button type="submit" className="hidden" aria-hidden="true" tabIndex={-1} />
       </form>
 
-      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2.5 border-t border-line bg-subtle px-5 py-4 sm:px-6">
-        {!isNew ? (
-          <button type="button" onClick={() => onDelete?.(tag)} className="inline-flex min-h-[44px] items-center gap-2 rounded px-3 font-semibold text-danger-700 hover:bg-danger-50"><FiTrash2 aria-hidden="true" /> Delete tag</button>
-        ) : <span />}
-        <div className="flex gap-2.5">
-          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn-primary" onClick={save}>{isNew ? 'Create tag' : 'Save changes'}</button>
+      {/* Footer */}
+      <div className="flex flex-none flex-wrap items-center justify-between gap-2 border-t bg-subtle px-6 py-3.5">
+        {!isNew
+          ? <Button type="button" variant="ghost" onClick={() => onDelete?.(tag)} className="text-danger-700 hover:bg-danger-50 hover:text-danger-700"><Trash2 />Delete tag</Button>
+          : <span />}
+        <div className="flex gap-2">
+          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+          <Button type="button" onClick={save}>{isNew ? 'Create tag' : 'Save changes'}</Button>
         </div>
       </div>
     </Drawer>

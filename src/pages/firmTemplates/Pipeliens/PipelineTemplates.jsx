@@ -1,11 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Outlet, useLocation, useNavigate } from 'react-router-dom';
-import { FiCopy, FiDownload, FiSearch, FiTrash2, FiZap } from 'react-icons/fi';
+import { ChevronRight, CircleAlert, Copy, Download, FileStack, GitBranch, Layers, Plus, SearchX, Trash2, Users, Zap } from 'lucide-react';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import {
   BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection,
 } from '../../../components/TableSelection';
-import { Avatar, Modal, cx, initials } from '../../../components/ui';
+import { Avatar, Modal, initials } from '../../../components/ui';
+import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
+import { toast } from '../../../components/ui/sonner';
+import { SimpleTooltip } from '../../../components/ui/tooltip';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { DataCard, EmptyState, PageHeader, SearchInput, StatCard } from '../../../components/page';
 import { useData } from '../../../context/DataContext';
 import { SORT_JOBS_BY } from '../../../data/pipelinesdata';
 import { templateOptionsFrom } from '../../../data/statusOptions';
@@ -14,9 +20,34 @@ import RowActionsMenu from '../../../components/RowActionsMenu';
 const LIST_PATH = '/firmtemp/pipelines';
 const fmtDate = (d) => (d ? new Date(d).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
 const automationCount = (p) => (p.stages || []).reduce((n, s) => n + (s.automations?.length || 0), 0);
+const stageColor = (i) => `hsl(var(--chart-${(i % 5) + 1}))`;
+const notify = (m) => (/delet|remov/i.test(m) ? toast(m) : toast.success(m));
 
 /** Route wrapper: /firmtemp/pipelines shows the list; /new and /:pipelineId show the form. */
 export function PipelinesLayout() { return <Outlet />; }
+
+function StageFlow({ stages }) {
+  if (!stages.length) return <span className="text-xs text-muted-foreground/70">No stages</span>;
+  const shown = stages.slice(0, 4);
+  return (
+    <div className="mt-1 flex min-w-0 flex-wrap items-center gap-1 text-xs text-muted-foreground">
+      {shown.map((s, i) => (
+        <span key={s.id || i} className="flex items-center gap-1">
+          {i > 0 && <ChevronRight className="size-3 text-muted-foreground/50" aria-hidden="true" />}
+          <span className="inline-flex h-5 max-w-[140px] items-center gap-1.5 rounded-md border bg-subtle px-1.5">
+            <span className="size-1.5 flex-none rounded-full" style={{ backgroundColor: stageColor(i) }} aria-hidden="true" />
+            <span className="truncate">{s.name || 'Untitled'}</span>
+          </span>
+        </span>
+      ))}
+      {stages.length > 4 && (
+        <SimpleTooltip label={stages.slice(4).map((s) => s.name).join(' → ')}>
+          <span className="inline-flex h-5 items-center rounded-md border bg-muted px-1.5 font-medium">+{stages.length - 4}</span>
+        </SimpleTooltip>
+      )}
+    </div>
+  );
+}
 
 /** Templates → Pipeline Templates: table of pipelines. New / Edit open PipelineForm. */
 export default function PipelineTemplates() {
@@ -27,8 +58,6 @@ export default function PipelineTemplates() {
 
   const [q, setQ] = useState('');
   const [confirm, setConfirm] = useState(null);
-  const [toast, setToast] = useState('');
-  const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2600); };
   useEffect(() => {
     if (routeState?.toast) { notify(routeState.toast); navigate(pathname, { replace: true, state: null }); }
   }, [routeState]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -46,7 +75,13 @@ export default function PipelineTemplates() {
   const { pageItems: rows, setPage } = paging;
   const selected = pipelines.filter((p) => selection.has(p.id));
 
-  if (!duplicatePipeline) return <div role="alert" className="card bg-danger-50 p-6 font-semibold text-danger-700">Pipelines are not set up in DataContext.js</div>;
+  if (!duplicatePipeline) {
+    return (
+      <div role="alert" className="flex items-center gap-2 rounded-xl border border-danger-200 bg-danger-50 p-5 text-sm font-medium text-danger-700">
+        <CircleAlert className="size-4 flex-none" aria-hidden="true" />Pipelines are not set up in DataContext.js
+      </div>
+    );
+  }
 
   const openNew = () => navigate(`${LIST_PATH}/new`);
   const openEdit = (p) => navigate(`${LIST_PATH}/${p.id}`);
@@ -61,124 +96,137 @@ export default function PipelineTemplates() {
         SORT_JOBS_BY.find((o) => o.value === p.sortjobsby)?.label || '', jobTemplateById.get(String(p.defaultjobtemplate)) || '', fmtDate(p.updatedAt)])]);
     notify(`Exported ${items.length} pipelines`);
   };
+  const clearSearch = () => { setQ(''); setSelectedOnly(false); setPage(1); };
 
-  const stats = [
-    ['Pipelines', pipelines.length],
-    ['Stages', pipelines.reduce((n, p) => n + (p.stages?.length || 0), 0)],
-    ['Automations', pipelines.reduce((n, p) => n + automationCount(p), 0)],
-    ['With a default job template', pipelines.filter((p) => p.defaultjobtemplate).length],
-  ];
+  const stageTotal = pipelines.reduce((n, p) => n + (p.stages?.length || 0), 0);
+  const autoTotal = pipelines.reduce((n, p) => n + automationCount(p), 0);
+  const withDefault = pipelines.filter((p) => p.defaultjobtemplate).length;
 
   return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="text-sm text-muted">Templates / Pipeline Templates</div>
-          <h1 className="mt-1 text-3xl font-bold">Pipeline Templates</h1>
-          <p className="mt-1 text-muted">Stages jobs move through, with automations that run at each stage.</p>
-        </div>
-        <button className="btn-primary" onClick={openNew}>+ New pipeline</button>
-      </header>
+    <div className="page">
+      <PageHeader
+        title="Pipeline Templates"
+        description="Stages jobs move through, with automations that run at each stage."
+        actions={<>
+          <Button variant="outline" onClick={() => exportCsv(filtered)} disabled={!filtered.length}><Download />Export</Button>
+          <Button onClick={openNew}><Plus />New pipeline</Button>
+        </>}
+      />
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map(([label, n]) => (
-          <div key={label} className="card p-4 sm:p-5"><div className="text-sm text-muted">{label}</div><div className="mt-1.5 text-2xl font-bold">{n}</div></div>
-        ))}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <StatCard label="Pipelines" value={pipelines.length} icon={GitBranch} />
+        <StatCard label="Stages" value={stageTotal} icon={Layers} hint={`${(stageTotal / Math.max(pipelines.length, 1)).toFixed(1)} per pipeline`} />
+        <StatCard label="Automations" value={autoTotal} icon={Zap} tone={autoTotal ? 'brand' : 'default'} />
+        <StatCard label="With a default job template" value={withDefault} icon={FileStack}
+          hint={`${Math.round((withDefault / Math.max(pipelines.length, 1)) * 100)}% of pipelines`} />
       </div>
 
-      <section className="card overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
-          <label className="flex min-h-[44px] flex-[1_1_260px] items-center gap-2 rounded border border-line-strong px-3 focus-within:border-brand-600">
-            <FiSearch size={18} className="text-muted" aria-hidden="true" /><span className="sr-only">Search pipelines</span>
-            <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search pipeline, stage, team member" className="min-w-0 flex-1 bg-transparent outline-none" />
-          </label>
-          {q && <button onClick={() => { setQ(''); setPage(1); }} className="btn-link px-2">Clear</button>}
-        </div>
-
-        <BulkBar count={selection.count} total={filtered.length}
-          onSelectAll={() => selection.setMany(filtered.map((p) => p.id), true)} onClear={selection.clear}
-          filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-          actions={<>
-            <button className={barButton} onClick={() => { selected.forEach((p) => duplicatePipeline(p.id)); notify(`Duplicated ${selected.length} pipeline${selected.length > 1 ? 's' : ''}`); selection.clear(); }}><FiCopy aria-hidden="true" /> Duplicate</button>
-            <button className={barButton} onClick={() => exportCsv(selected)}><FiDownload aria-hidden="true" /> Export</button>
-            <button className={barDanger} onClick={() => setConfirm(selected)}><FiTrash2 aria-hidden="true" /> Delete</button>
-          </>}
-        />
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] border-collapse">
-            <thead>
-              <tr className="bg-subtle text-left text-xs uppercase tracking-wide text-muted">
-                <th className="w-12 py-3 pl-5 pr-1"><HeaderCheckbox selection={selection} pageIds={rows.map((p) => p.id)} /></th>
-                <th className="px-3 py-3 font-semibold">Pipeline</th>
-                <th className="px-3 py-3 font-semibold">Stages</th>
-                <th className="px-3 py-3 font-semibold">Automations</th>
-                <th className="px-3 py-3 font-semibold">Available to</th>
-                <th className="px-3 py-3 font-semibold">Default job template</th>
-                <th className="px-3 py-3 font-semibold">Updated</th>
-                <th className="px-5 py-3 text-right font-semibold"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((p) => {
-                const checked = selection.has(p.id);
-                const stages = p.stages || [];
-                return (
-                  <tr key={p.id} aria-selected={checked} className={cx('border-t border-line-soft', checked ? 'bg-brand-50' : 'hover:bg-subtle/60')}>
-                    <td className="py-3 pl-5 pr-1"><SelectCheckbox label={`Select ${p.pipelineName}`} checked={checked} onChange={() => selection.toggle(p.id)} /></td>
-                    <td className="max-w-[340px] px-3 py-3">
-                      <button onClick={() => openEdit(p)} className="text-left font-semibold hover:text-brand-600 hover:underline">{p.pipelineName}</button>
-                      <div className="mt-1 flex flex-wrap items-center gap-1 text-xs text-muted">
-                        {stages.slice(0, 4).map((s, i) => <span key={s.id || i} className="flex items-center gap-1">{i > 0 && <span aria-hidden="true">→</span>}<span className="rounded bg-subtle px-1.5 py-0.5">{s.name}</span></span>)}
-                        {stages.length > 4 && <span>→ +{stages.length - 4}</span>}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 font-semibold">{stages.length}</td>
-                    <td className="px-3 py-3 text-sm">{automationCount(p) ? <span className="inline-flex items-center gap-1"><FiZap className="text-warning-700" aria-hidden="true" />{automationCount(p)}</span> : <span className="text-muted">—</span>}</td>
-                    <td className="px-3 py-3">
-                      {(p.availableto || []).length ? (
-                        <div className="flex -space-x-2" title={p.availableto.join(', ')}>
-                          {p.availableto.slice(0, 4).map((n) => <span key={n} className="rounded-full ring-2 ring-surface"><Avatar text={initials(n)} size="sm" tone="solid" /></span>)}
+      <DataCard
+        toolbar={<>
+          <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Search pipeline, stage, team member" label="Search pipelines" className="h-8 w-full sm:w-80" />
+          <span className="ml-auto hidden text-sm tabular-nums text-muted-foreground md:inline">{filtered.length} of {pipelines.length}</span>
+        </>}
+        footer={filtered.length > 0 && <Pagination {...paging} label="pipelines" />}
+      >
+        <Table className="min-w-[1000px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10"><HeaderCheckbox selection={selection} pageIds={rows.map((p) => p.id)} /></TableHead>
+              <TableHead>Pipeline</TableHead>
+              <TableHead className="text-right">Stages</TableHead>
+              <TableHead>Automations</TableHead>
+              <TableHead>Available to</TableHead>
+              <TableHead>Default job template</TableHead>
+              <TableHead>Updated</TableHead>
+              <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((p) => {
+              const checked = selection.has(p.id);
+              const stages = p.stages || [];
+              const autos = automationCount(p);
+              const team = p.availableto || [];
+              const tpl = jobTemplateById.get(String(p.defaultjobtemplate));
+              return (
+                <TableRow key={p.id} data-state={checked ? 'selected' : undefined}>
+                  <TableCell><SelectCheckbox label={`Select ${p.pipelineName}`} checked={checked} onChange={() => selection.toggle(p.id)} /></TableCell>
+                  <TableCell className="max-w-[380px]">
+                    <button type="button" onClick={() => openEdit(p)} className="block max-w-full truncate text-left font-medium text-foreground underline-offset-4 hover:underline focus-visible:outline-none focus-visible:underline">{p.pipelineName}</button>
+                    <StageFlow stages={stages} />
+                  </TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">{stages.length}</TableCell>
+                  <TableCell>
+                    {autos ? <Badge variant="info" className="tabular-nums"><Zap aria-hidden="true" />{autos}</Badge> : <span className="text-muted-foreground/60">—</span>}
+                  </TableCell>
+                  <TableCell>
+                    {team.length ? (
+                      <SimpleTooltip label={team.join(', ')}>
+                        <div className="flex items-center gap-2">
+                          <div className="flex -space-x-1">
+                            {team.slice(0, 4).map((n) => <span key={n} className="rounded-full ring-2 ring-card"><Avatar text={initials(n)} size="xs" /></span>)}
+                          </div>
+                          {team.length > 4 && <span className="text-xs tabular-nums text-muted-foreground">+{team.length - 4}</span>}
                         </div>
-                      ) : <span className="text-muted">Everyone</span>}
-                    </td>
-                    <td className="px-3 py-3 text-sm">{jobTemplateById.get(String(p.defaultjobtemplate)) || <span className="text-muted">—</span>}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-muted">{fmtDate(p.updatedAt)}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex justify-end gap-1">
-                        {/* <button onClick={() => openEdit(p)} aria-label={`Edit ${p.pipelineName}`} className="flex h-9 w-9 items-center justify-center rounded text-muted hover:bg-subtle hover:text-ink"><FiEdit2 aria-hidden="true" /></button>
-                        <button onClick={() => { duplicatePipeline(p.id); notify(`Duplicated “${p.pipelineName}”`); }} aria-label={`Duplicate ${p.pipelineName}`} className="flex h-9 w-9 items-center justify-center rounded text-muted hover:bg-subtle hover:text-ink"><FiCopy aria-hidden="true" /></button>
-                        <button onClick={() => setConfirm([p])} aria-label={`Delete ${p.pipelineName}`} className="flex h-9 w-9 items-center justify-center rounded text-danger-700 hover:bg-danger-50"><FiTrash2 aria-hidden="true" /></button> */}
-                      <RowActionsMenu
-                        label={p.pipelineName}
-                        onEdit={() => openEdit(p)}
-                        onDuplicate={() => { duplicatePipeline(p.id); notify(`Duplicated “${p.pipelineName}”`); }}
-                        onDelete={() => setConfirm([p])}
-                      />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="flex flex-col items-center gap-3 p-12 text-center text-muted">
-              {pipelines.length ? 'No pipelines match your search.' : 'No pipelines yet.'}
-              {!pipelines.length && <button onClick={openNew} className="btn-primary">+ New pipeline</button>}
-            </div>
-          )}
-        </div>
-        <Pagination {...paging} label="pipelines" />
-      </section>
+                      </SimpleTooltip>
+                    ) : <span className="inline-flex items-center gap-1.5 text-sm text-muted-foreground"><Users className="size-3.5" aria-hidden="true" />Everyone</span>}
+                  </TableCell>
+                  <TableCell className="max-w-[220px] truncate text-sm">{tpl || <span className="text-muted-foreground/60">—</span>}</TableCell>
+                  <TableCell className="whitespace-nowrap text-sm tabular-nums text-muted-foreground">{fmtDate(p.updatedAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <RowActionsMenu
+                      label={p.pipelineName}
+                      onEdit={() => openEdit(p)}
+                      onDuplicate={() => { duplicatePipeline(p.id); notify(`Duplicated “${p.pipelineName}”`); }}
+                      onDelete={() => setConfirm([p])}
+                    />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {filtered.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={8}>
+                  {pipelines.length ? (
+                    <EmptyState icon={SearchX} title="No pipelines match your search." description="Try a different pipeline, stage or team member name."
+                      action={<Button variant="outline" onClick={clearSearch}>Clear search</Button>} />
+                  ) : (
+                    <EmptyState icon={GitBranch} title="No pipelines yet." description="Create a pipeline to define the stages your jobs move through."
+                      action={<Button onClick={openNew}><Plus />New pipeline</Button>} />
+                  )}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </DataCard>
+
+      <BulkBar count={selection.count} total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((p) => p.id), true)} onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <button type="button" className={barButton} onClick={() => { selected.forEach((p) => duplicatePipeline(p.id)); notify(`Duplicated ${selected.length} pipeline${selected.length > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
+          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
 
       {confirm && (
-        <Modal title={confirm.length === 1 ? `Delete “${confirm[0].pipelineName}”?` : `Delete ${confirm.length} pipelines?`} onClose={() => setConfirm(null)}
-          footer={<><button className="btn-secondary" onClick={() => setConfirm(null)}>Cancel</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={remove}>Delete</button></>}>
-          <p className="text-muted">Jobs already in {confirm.length === 1 ? 'this pipeline' : 'these pipelines'} are not affected.</p>
+        <Modal title={confirm.length === 1 ? `Delete “${confirm[0].pipelineName}”?` : `Delete ${confirm.length} pipelines?`}
+          description={`Jobs already in ${confirm.length === 1 ? 'this pipeline' : 'these pipelines'} are not affected.`} onClose={() => setConfirm(null)}
+          footer={<><Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={remove}><Trash2 />Delete</Button></>}>
+          <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border">
+            {confirm.map((p) => (
+              <li key={p.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                <GitBranch className="size-4 flex-none text-muted-foreground" aria-hidden="true" />
+                <span className="truncate font-medium">{p.pipelineName}</span>
+                <span className="ml-auto flex-none text-xs tabular-nums text-muted-foreground">{(p.stages || []).length} stages</span>
+              </li>
+            ))}
+          </ul>
         </Modal>
       )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
     </div>
   );
 }

@@ -1,7 +1,7 @@
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { FiCheck, FiEdit3, FiPlus } from 'react-icons/fi';
-import { cx } from './ui';
+import { Check, PenLine, Plus } from 'lucide-react';
+import { cn } from 'lib/utils';
 import { money } from '../data/invoiceTemplates';
 
 /**
@@ -76,28 +76,31 @@ export default function ServiceCombobox({ label, value, serviceId, services = []
         value={value} placeholder="Type a service or item name" onKeyDown={onKeyDown}
         onFocus={() => setOpen(true)} onClick={() => setOpen(true)}
         onChange={(e) => { onType(e.target.value); setOpen(true); }}
-        className={cx('min-h-[38px] w-full rounded border bg-surface px-2.5 text-sm font-semibold focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30',
-          invalid ? 'border-danger-700' : 'border-line-strong')} />
+        aria-invalid={invalid || undefined}
+        className={cn('h-9 w-full rounded-md border bg-card px-2.5 text-sm font-medium text-foreground shadow-xs outline-none transition-[border-color,box-shadow] placeholder:font-normal placeholder:text-muted-foreground/70',
+          'focus:border-ring focus:ring-[3px] focus:ring-ring/20',
+          invalid ? 'border-destructive focus:border-destructive focus:ring-destructive/20' : 'border-input')} />
       {open && options.length > 0 && createPortal(
         <ul ref={listRef} id={`${id}-list`} role="listbox" aria-label={`${label} suggestions`}
           style={{ position: 'fixed', top: pos.top, left: pos.left, width: pos.width }}
-          className="z-[70] max-h-[300px] overflow-y-auto rounded-md border border-line bg-surface p-1 shadow-pop">
+          className="pointer-events-auto z-[120] max-h-[300px] overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-pop animate-in fade-in-0 zoom-in-95">
           {options.map((opt, i) => {
             const header = opt.kind === 'service' && opt.group !== lastGroup ? opt.group : null;
             if (opt.kind === 'service') lastGroup = opt.group;
             const isActive = i === active;
             return (
               <li key={opt.key} role="presentation">
-                {header && <div className="px-2.5 pb-0.5 pt-2 text-[11px] font-bold uppercase tracking-wide text-muted">{header}</div>}
+                {header && <div className="px-2 pb-1 pt-2 text-xs font-medium text-muted-foreground">{header}</div>}
+                {opt.kind !== 'service' && i > 0 && options[i - 1].kind === 'service' && <div className="-mx-1 my-1 h-px bg-border" aria-hidden="true" />}
                 <div id={`${id}-opt-${i}`} role="option" aria-selected={isActive} onMouseDown={(e) => e.preventDefault()} onClick={() => choose(opt)} onMouseEnter={() => setActive(i)}
-                  className={cx('flex cursor-pointer items-center gap-2 rounded px-2.5 py-2 text-sm', isActive && 'bg-subtle', opt.kind !== 'service' && 'border-t border-line-soft')}>
+                  className={cn('flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm transition-colors', isActive && 'bg-accent text-accent-foreground')}>
                   {opt.kind === 'service' && (<>
-                    <span className="min-w-0 flex-1"><span className="block truncate font-semibold">{opt.service.name}</span>{opt.service.description && <span className="block truncate text-xs text-muted">{opt.service.description}</span>}</span>
-                    <span className="flex-none text-xs font-semibold text-muted">{money(opt.service.rate)}</span>
-                    {opt.service.id === serviceId && <FiCheck className="flex-none text-brand-600" aria-hidden="true" />}
+                    <span className="min-w-0 flex-1"><span className="block truncate font-medium">{opt.service.name}</span>{opt.service.description && <span className="block truncate text-xs text-muted-foreground">{opt.service.description}</span>}</span>
+                    <span className="flex-none text-xs font-medium tabular-nums text-muted-foreground">{money(opt.service.rate)}</span>
+                    <Check className={cn('size-4 flex-none text-primary', opt.service.id !== serviceId && 'invisible')} aria-hidden="true" />
                   </>)}
-                  {opt.kind === 'custom' && <><FiEdit3 className="flex-none text-muted" aria-hidden="true" /><span className="truncate">{`Use “${opt.text}” as a custom item`}</span></>}
-                  {opt.kind === 'create' && <><FiPlus className="flex-none text-brand-600" aria-hidden="true" /><span className="truncate font-semibold text-brand-600">{`Create service “${opt.text}”`}</span></>}
+                  {opt.kind === 'custom' && <><PenLine className="size-4 flex-none text-muted-foreground" aria-hidden="true" /><span className="truncate">{`Use “${opt.text}” as a custom item`}</span></>}
+                  {opt.kind === 'create' && <><Plus className="size-4 flex-none text-primary" aria-hidden="true" /><span className="truncate font-medium text-primary">{`Create service “${opt.text}”`}</span></>}
                 </div>
               </li>
             );

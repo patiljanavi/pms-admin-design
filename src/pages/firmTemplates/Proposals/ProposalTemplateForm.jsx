@@ -1,16 +1,67 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { FiAlertCircle, FiArrowLeft, FiCheck, FiChevronLeft, FiChevronRight, FiTrash2 } from 'react-icons/fi';
+import { AlertTriangle, ArrowLeft, Check, ChevronLeft, ChevronRight, CircleAlert, FileSignature, SearchX, Trash2 } from 'lucide-react';
 import GeneralStep from '../../../components/Proposal/GeneralStep';
 import TextStep from '../../../components/Proposal/TextStep';
 import ServicesInvoicesStep from '../../../components/Proposal/ServicesInvoicesStep';
 import PaymentStep from '../../../components/Proposal/PaymentStep';
-import { Modal, cx } from '../../../components/ui';
+import { Modal } from '../../../components/ui';
+import { Alert, AlertTitle } from '../../../components/ui/alert';
+import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
+import { Card } from '../../../components/ui/card';
+import { ToastBridge } from '../../../components/ui/sonner';
+import { EmptyState } from '../../../components/page';
 import { useData } from '../../../context/DataContext';
 import { emptyProposal, proposalSteps, validateProposalStep } from '../../../data/proposalTemplates';
+import { cn } from 'lib/utils';
 
 const LIST_PATH = '/firmtemp/templates/proposals';
 const clone = (o) => JSON.parse(JSON.stringify(o));
+
+/* ---------- building blocks ---------- */
+function EditorHeader({ backLabel, backAria, onBack, icon: Icon, title, status, description, actions }) {
+  return (
+    <header className="flex flex-col gap-4">
+      <button type="button" onClick={onBack} aria-label={backAria}
+        className="group inline-flex w-fit items-center gap-1.5 rounded-md text-sm font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+        <ArrowLeft className="size-4 transition-transform group-hover:-translate-x-0.5" aria-hidden="true" />{backLabel}
+      </button>
+      <div className="flex flex-wrap items-start justify-between gap-x-6 gap-y-3">
+        <div className="flex min-w-0 items-start gap-3.5">
+          {Icon && (
+            <span className="mt-0.5 inline-flex size-10 flex-none items-center justify-center rounded-xl border border-brand-100 bg-brand-50 text-brand-700 [&_svg]:size-5" aria-hidden="true">
+              <Icon />
+            </span>
+          )}
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <h1 className="page-title truncate">{title}</h1>
+              {status}
+            </div>
+            {description && <p className="page-description">{description}</p>}
+          </div>
+        </div>
+        {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      </div>
+    </header>
+  );
+}
+
+function ActionBar({ dirty, isNew, start, children }) {
+  return (
+    <div className="sticky bottom-0 z-20 -mx-4 -mb-6 mt-6 border-t bg-card/85 px-4 py-3 backdrop-blur-md sm:-mx-6 sm:px-6 lg:-mx-8 lg:-mb-8 lg:px-8">
+      <div className="mx-auto flex max-w-[1100px] flex-wrap items-center gap-2">
+        {start}
+        <span className={cn('mr-auto inline-flex items-center gap-2 text-sm', dirty ? 'font-medium text-warning-700' : 'text-muted-foreground')} aria-live="polite">
+          <span className={cn('size-1.5 rounded-full', dirty ? 'bg-warning-500' : isNew ? 'bg-muted-foreground/50' : 'bg-success-500')} aria-hidden="true" />
+          <span className="hidden sm:inline">{dirty ? 'Unsaved changes' : isNew ? 'Not saved yet' : 'All changes saved'}</span>
+        </span>
+        {children}
+      </div>
+    </div>
+  );
+}
 
 /**
  * Create / edit a proposal template — step by step (General · Introduction · Terms · Services & Invoices · Payment).
@@ -63,12 +114,16 @@ function ProposalForm({ proposalId }) {
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
-  if (!saveProposalTemplate) return <div role="alert" className="card bg-danger-50 p-6 font-semibold text-danger-700">Proposal templates are not set up in DataContext.js</div>;
+  if (!saveProposalTemplate) {
+    return <Alert variant="destructive"><AlertTriangle aria-hidden="true" /><AlertTitle>Proposal templates are not set up in DataContext.js</AlertTitle></Alert>;
+  }
   if (proposalId && !existing) {
     return (
-      <div className="flex flex-col items-start gap-4">
-        <h1 className="text-3xl font-bold">Proposal template not found</h1>
-        <Link to={LIST_PATH} className="btn-primary">Back to proposals</Link>
+      <div className="page max-w-[1100px]">
+        <Card>
+          <EmptyState icon={SearchX} title="Proposal template not found" description="It may have been deleted, or the link is out of date."
+            action={<Button asChild><Link to={LIST_PATH}><ArrowLeft />Back to proposals</Link></Button>} />
+        </Card>
       </div>
     );
   }
@@ -133,80 +188,85 @@ function ProposalForm({ proposalId }) {
     services: <ServicesInvoicesStep {...stepProps} />,
     payments: <PaymentStep {...stepProps} />,
   }[stepKey];
+  const currentHasError = hasStepError(stepKey);
+  const progress = availableSteps.length > 1 ? (step / (availableSteps.length - 1)) * 100 : 100;
 
   return (
-    <div className="flex flex-col gap-6">
-      {/* Header */}
-      <header className="flex flex-wrap items-start gap-4">
-        <button onClick={handleBackToList} aria-label="Back to proposals" className="mt-1 flex h-10 w-10 flex-none items-center justify-center rounded border border-line-strong bg-surface hover:bg-subtle"><FiArrowLeft size={18} /></button>
-        <div className="min-w-0 flex-1">
-          <nav aria-label="Breadcrumb" className="text-sm text-muted">
-            <Link to="/firmtemp/templates" className="hover:underline">Firm Templates</Link> <span aria-hidden="true">/</span> <Link to={LIST_PATH} className="hover:underline">Proposals &amp; ELs</Link>
-          </nav>
-          <h1 className="truncate text-2xl font-bold sm:text-3xl">{isEditing ? `Edit Proposal: ${saved.general.templateName}` : 'Create New Proposal'}</h1>
-          <p className="text-muted">Step {step + 1} of {availableSteps.length} · {availableSteps[step]?.name}</p>
-        </div>
-        {isEditing && <button type="button" className="btn border border-danger-200 bg-surface text-danger-700 hover:bg-danger-50" onClick={() => setModal('delete')}><FiTrash2 aria-hidden="true" /> Delete</button>}
-      </header>
+    <>
+      <div className="page max-w-[1100px]">
+        <EditorHeader backLabel="Proposals & ELs" backAria="Back to proposals" onBack={handleBackToList} icon={FileSignature}
+          title={isEditing ? `Edit Proposal: ${saved.general.templateName}` : 'Create New Proposal'}
+          status={!isEditing ? <Badge variant="info" dot>New</Badge> : dirty ? <Badge variant="warning" dot>Edited</Badge> : <Badge variant="success" dot>Saved</Badge>}
+          description={`Step ${step + 1} of ${availableSteps.length} · ${availableSteps[step]?.name}`}
+          actions={isEditing && <Button variant="destructive-outline" onClick={() => setModal('delete')}><Trash2 />Delete</Button>} />
 
-      {/* Stepper */}
-      <nav aria-label="Proposal steps" className="card p-3 sm:p-4">
-        <ol className="flex flex-wrap items-center gap-y-2">
-          {availableSteps.map((s, i) => {
-            const isActive = i === step;
-            const hasError = hasStepError(s.key);
-            const isCompleted = i < step && !hasError;
-            return (
-              <li key={s.key} className="flex items-center">
-                <button type="button" onClick={() => goToStep(i)} aria-current={isActive ? 'step' : undefined} aria-label={`Step ${i + 1}: ${s.name}${hasError ? ' (has errors)' : isCompleted ? ' (done)' : ''}`}
-                  className={cx('flex items-center gap-2 rounded-full px-3.5 py-1.5 text-sm font-semibold transition-colors',
-                    isActive ? 'bg-brand-600 text-white shadow-card'
-                      : hasError ? 'bg-danger-50 text-danger-700 hover:bg-danger-100'
-                        : isCompleted ? 'bg-brand-100 text-brand-800 hover:bg-brand-100/70'
-                          : 'bg-subtle text-muted hover:text-ink')}>
-                  <span className={cx('flex h-5 w-5 items-center justify-center rounded-full text-[11px] font-bold',
-                    isActive ? 'bg-white/25 text-white' : hasError ? 'bg-danger-700 text-white' : isCompleted ? 'bg-brand-600 text-white' : 'bg-line-strong/60 text-ink')}>
-                    {hasError && !isActive ? <FiAlertCircle size={12} aria-hidden="true" /> : isCompleted ? <FiCheck size={12} aria-hidden="true" /> : i + 1}
-                  </span>
-                  <span className="hidden sm:inline">{s.name}</span>
-                </button>
-                {i < availableSteps.length - 1 && <FiChevronRight className="mx-1 text-line-strong" aria-hidden="true" />}
-              </li>
-            );
-          })}
-        </ol>
-      </nav>
+        {/* Stepper */}
+        <nav aria-label="Proposal steps" className="overflow-hidden rounded-xl border bg-card shadow-card">
+          <ol className="flex items-center gap-1 overflow-x-auto px-3 py-3 sm:px-4">
+            {availableSteps.map((s, i) => {
+              const isActive = i === step;
+              const hasError = hasStepError(s.key);
+              const isCompleted = i < step && !hasError;
+              const last = i === availableSteps.length - 1;
+              return (
+                <li key={s.key} className={cn('flex min-w-0 items-center gap-1', !last && 'flex-1')}>
+                  <button type="button" onClick={() => goToStep(i)} aria-current={isActive ? 'step' : undefined}
+                    aria-label={`Step ${i + 1}: ${s.name}${hasError ? ' (has errors)' : isCompleted ? ' (done)' : ''}`}
+                    className={cn('group flex flex-none items-center gap-2.5 rounded-md px-1.5 py-1 text-sm font-medium transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                      isActive ? 'text-foreground' : hasError ? 'text-danger-700' : isCompleted ? 'text-foreground' : 'text-muted-foreground hover:text-foreground')}>
+                    <span className={cn('inline-flex size-6 flex-none items-center justify-center rounded-full border text-xs font-semibold tabular-nums transition-colors',
+                      isActive ? (hasError ? 'border-danger-600 bg-danger-600 text-danger-50 ring-4 ring-danger-100' : 'border-primary bg-primary text-primary-foreground ring-4 ring-primary/15')
+                        : hasError ? 'border-danger-200 bg-danger-50 text-danger-700'
+                          : isCompleted ? 'border-primary/40 bg-primary/10 text-primary'
+                            : 'border-line-strong bg-card text-muted-foreground')}>
+                      {hasError && !isActive ? <CircleAlert className="size-3.5" aria-hidden="true" /> : isCompleted ? <Check className="size-3.5" strokeWidth={3} aria-hidden="true" /> : i + 1}
+                    </span>
+                    <span className={cn('whitespace-nowrap', !isActive && 'hidden md:inline')}>{s.name}</span>
+                  </button>
+                  {!last && <span className={cn('mx-1 h-px min-w-3 flex-1 rounded-full', isCompleted ? 'bg-primary/50' : 'bg-border')} aria-hidden="true" />}
+                </li>
+              );
+            })}
+          </ol>
+          <div className="h-0.5 bg-muted" aria-hidden="true">
+            <div className="h-full bg-primary/70 transition-[width] duration-300" style={{ width: `${progress}%` }} />
+          </div>
+        </nav>
 
-      {/* Step content */}
-      <div className="card p-5 sm:p-8">{content}</div>
+        {currentHasError && (
+          <Alert variant="destructive">
+            <CircleAlert aria-hidden="true" />
+            <AlertTitle>Please fix the highlighted fields in this step.</AlertTitle>
+          </Alert>
+        )}
 
-      {/* Navigation (sticky) */}
-      <div className="sticky bottom-0 z-10 -mx-4 -mb-6 border-t border-line bg-surface/95 px-4 py-3 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-10 lg:-mb-8 lg:px-10">
-        <div className="flex flex-wrap items-center gap-2.5">
-          <button type="button" className="btn-secondary" onClick={prevStep} disabled={step === 0}><FiChevronLeft aria-hidden="true" /> Previous</button>
-          {dirty && <span className="flex items-center gap-2 text-sm font-semibold text-warning-700"><span className="h-2 w-2 rounded-full bg-warning-700" aria-hidden="true" />Unsaved changes</span>}
-          <span className="ml-auto" />
-          <button type="button" className="btn-secondary" onClick={handleBackToList}>Cancel</button>
-          <button type="button" className="btn border border-brand-600 bg-brand-50 text-brand-600 hover:bg-brand-100" onClick={() => handleSubmit(false)}>{isEditing ? 'Update' : 'Save'}</button>
-          <button type="button" className="btn-primary" onClick={nextStep}>
-            {isLastStep ? (isEditing ? 'Update Proposal' : 'Submit Proposal') : <>Next <FiChevronRight aria-hidden="true" /></>}
-          </button>
-        </div>
+        {/* Step content */}
+        <Card className="p-5 sm:p-8">{content}</Card>
+
+        {modal === 'discard' && (
+          <Modal title="Discard changes?" onClose={() => setModal(null)}
+            footer={<><Button variant="outline" onClick={() => setModal(null)}>Keep editing</Button><Button variant="destructive" onClick={() => navigate(LIST_PATH)}>Discard</Button></>}>
+            <p className="text-sm text-muted-foreground">Your changes to this proposal haven't been saved.</p>
+          </Modal>
+        )}
+        {modal === 'delete' && (
+          <Modal title={`Delete “${saved.general.templateName}”?`} onClose={() => setModal(null)}
+            footer={<><Button variant="outline" onClick={() => setModal(null)}>Cancel</Button><Button variant="destructive" onClick={() => { deleteProposalTemplates([proposalId]); navigate(LIST_PATH, { state: { toast: `Deleted “${saved.general.templateName}”` } }); }}><Trash2 />Delete</Button></>}>
+            <p className="text-sm text-muted-foreground">Proposals already sent from this template are not affected.</p>
+          </Modal>
+        )}
+        <ToastBridge message={toast} />
       </div>
 
-      {modal === 'discard' && (
-        <Modal title="Discard changes?" onClose={() => setModal(null)}
-          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Keep editing</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={() => navigate(LIST_PATH)}>Discard</button></>}>
-          <p className="text-muted">Your changes to this proposal haven't been saved.</p>
-        </Modal>
-      )}
-      {modal === 'delete' && (
-        <Modal title={`Delete “${saved.general.templateName}”?`} onClose={() => setModal(null)}
-          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={() => { deleteProposalTemplates([proposalId]); navigate(LIST_PATH, { state: { toast: `Deleted “${saved.general.templateName}”` } }); }}>Delete</button></>}>
-          <p className="text-muted">Proposals already sent from this template are not affected.</p>
-        </Modal>
-      )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
-    </div>
+      {/* Navigation (sticky) */}
+      <ActionBar dirty={dirty} isNew={!isEditing}
+        start={<Button variant="outline" onClick={prevStep} disabled={step === 0}><ChevronLeft />Previous</Button>}>
+        <Button variant="ghost" onClick={handleBackToList}>Cancel</Button>
+        <Button variant="outline" onClick={() => handleSubmit(false)}>{isEditing ? 'Update' : 'Save'}</Button>
+        <Button onClick={nextStep}>
+          {isLastStep ? (isEditing ? 'Update Proposal' : 'Submit Proposal') : <>Next<ChevronRight /></>}
+        </Button>
+      </ActionBar>
+    </>
   );
 }

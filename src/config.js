@@ -2,15 +2,10 @@
 // App settings in one place: URLs, sidebar menu, quick create and fonts.
 // This file imports no pages, so any file can import it safely.
 // ─────────────────────────────────────────────────────────────
-import { AiOutlineAppstoreAdd, AiOutlineImport } from 'react-icons/ai';
-import { MdOutlineMail, MdFormatListBulletedAdd, MdForum, MdAddCard, MdOutlineTask, MdOutlinePayment } from 'react-icons/md';
-import { IoPeopleOutline, IoBagAddOutline, IoPaperPlaneOutline } from 'react-icons/io5';
-import { FaRegUser, FaRegNewspaper } from 'react-icons/fa';
-import { RiContactsBook3Line } from 'react-icons/ri';
-import { LuWorkflow } from 'react-icons/lu';
-import { LiaMoneyBillSolid } from 'react-icons/lia';
-import { FiSettings } from 'react-icons/fi';
-import { GoDotFill } from 'react-icons/go';
+import {
+  LayoutDashboard, Inbox, Users, Workflow, Receipt, Settings, LayoutTemplate, Upload, MessagesSquare,
+  Building2, Contact, Briefcase, FileSignature, FilePlus2, ListTodo, Send, CreditCard,
+} from 'lucide-react';
 
 /* ---------- URLs ---------- */
 export const ACCOUNTS_PATH = '/clients/accounts/activeaccounts';
@@ -48,57 +43,63 @@ export const accountTabPath = (tab, accountId) => `${ACCOUNT_DASH_PATH}/${tab}/$
  * `icon` is the react-icons component itself. Items with `submenu` become expandable groups.
  * App.js imports MENU to create one route per path.
  */
+/** Sidebar section headings, in display order. */
+export const MENU_GROUPS = [
+  { id: 'workspace', label: 'Workspace' },
+  { id: 'firm', label: 'Firm' },
+];
+
 export const MENU = [
-  { id: 'insights', label: 'Insights', path: '/insights', icon: AiOutlineAppstoreAdd, submenu: [] },
-  { id: 'inbox', label: 'Inbox +', path: '/Inbox+', icon: MdOutlineMail, submenu: [] },
+  { id: 'insights', label: 'Insights', path: '/insights', icon: LayoutDashboard, group: 'workspace', submenu: [] },
+  { id: 'inbox', label: 'Inbox', path: '/Inbox+', icon: Inbox, group: 'workspace', badge: 12, submenu: [] },
   {
-    id: 'clients', label: 'Clients', path: '/clients/accounts/activeaccounts', icon: IoPeopleOutline,
+    id: 'clients', label: 'Clients', path: '/clients/accounts/activeaccounts', icon: Users, group: 'workspace',
     submenu: [
-      { id: 'clients-accounts', label: 'Accounts', path: '/clients/accounts/activeaccounts', icon: GoDotFill },
-      { id: 'clients-contacts', label: 'Contacts', path: '/clients/contacts', icon: GoDotFill },
+      { id: 'clients-accounts', label: 'Accounts', path: '/clients/accounts/activeaccounts' },
+      { id: 'clients-contacts', label: 'Contacts', path: '/clients/contacts' },
     ],
   },
   {
-    id: 'workflow', label: 'Workflow', path: '/jobs/activejob', icon: LuWorkflow,
+    id: 'workflow', label: 'Workflow', path: '/jobs/activejob', icon: Workflow, group: 'workspace',
     submenu: [
-      { id: 'workflow-jobs', label: 'Jobs', path: '/jobs/activejob', icon: GoDotFill },
-      { id: 'workflow-pipelines', label: 'Pipelines', path: '/pipelines', icon: GoDotFill },
-      { id: 'workflow-tasks', label: 'Tasks', path: '/tasks/pending', icon: GoDotFill },
+      { id: 'workflow-jobs', label: 'Jobs', path: '/jobs/activejob' },
+      { id: 'workflow-pipelines', label: 'Pipelines', path: '/pipelines' },
+      { id: 'workflow-tasks', label: 'Tasks', path: '/tasks/pending' },
     ],
   },
   {
-    id: 'billing', label: 'Billing', path: '/billing/time', icon: LiaMoneyBillSolid,
+    id: 'billing', label: 'Billing', path: '/billing/time', icon: Receipt, group: 'workspace',
     submenu: [
-      { id: 'billing-invoices', label: 'Invoices', path: '/billing/Invoices', icon: GoDotFill },
-      { id: 'billing-proposals', label: 'Proposals&Els', path: '/billing/proposalsandels', icon: GoDotFill },
+      { id: 'billing-invoices', label: 'Invoices', path: '/billing/Invoices' },
+      { id: 'billing-proposals', label: 'Proposals&Els', path: '/billing/proposalsandels' },
     ],
   },
   {
-    id: 'settings', label: 'Settings', path: '/settings/myaccount', icon: FiSettings,
+    id: 'settings', label: 'Settings', path: '/settings/myaccount', icon: Settings, group: 'firm',
     submenu: [
-      { id: 'settings-myaccount', label: 'My Account', path: '/settings/myaccount', icon: GoDotFill },
-      { id: 'settings-firm', label: 'Firm Settings', path: '/settings/firmsettings', icon: GoDotFill },
+      { id: 'settings-myaccount', label: 'My Account', path: '/settings/myaccount' },
+      { id: 'settings-firm', label: 'Firm Settings', path: '/settings/firmsettings' },
     ],
   },
   {
-    id: 'templates', label: 'Templates', path: '/firmtemp/marketplace', icon: MdFormatListBulletedAdd,
+    id: 'templates', label: 'Templates', path: '/firmtemp/marketplace', icon: LayoutTemplate, group: 'firm',
     submenu: [
-      { id: 'templates-firm', label: 'Firm Templates', path: '/firmtemp/templates', icon: GoDotFill },
-      { id: 'templates-services', label: 'Services', path: '/firmtemp/service', icon: GoDotFill },
-      { id: 'templates-teams', label: 'Teams & Plans', path: '/firmtemp/teammember', icon: GoDotFill },
-      { id: 'templates-tags', label: 'Tags', path: '/firmtemp/tags', icon: GoDotFill },
-      { id: 'templates-pipelines', label: 'Pipeline Templates', path: '/firmtemp/pipelines', icon: GoDotFill },
+      { id: 'templates-firm', label: 'Firm Templates', path: '/firmtemp/templates' },
+      { id: 'templates-services', label: 'Services', path: '/firmtemp/service' },
+      { id: 'templates-teams', label: 'Teams & Plans', path: '/firmtemp/teammember' },
+      { id: 'templates-tags', label: 'Tags', path: '/firmtemp/tags' },
+      { id: 'templates-pipelines', label: 'Pipeline Templates', path: '/firmtemp/pipelines' },
     ],
   },
   {
-    id: 'import', label: 'Import', path: '/import/contacts', icon: AiOutlineImport,
+    id: 'import', label: 'Import', path: '/import/contacts', icon: Upload, group: 'firm',
     submenu: [
-      { id: 'import-contacts', label: 'Contact Import', path: '/import/contacts', icon: GoDotFill },
-      { id: 'import-accounts', label: 'Account Import', path: '/import/accounts', icon: GoDotFill },
-      { id: 'import-docs', label: 'Document Upload', path: '/upload-docs', icon: GoDotFill },
+      { id: 'import-contacts', label: 'Contact Import', path: '/import/contacts' },
+      { id: 'import-accounts', label: 'Account Import', path: '/import/accounts' },
+      { id: 'import-docs', label: 'Document Upload', path: '/upload-docs' },
     ],
   },
-  { id: 'communication', label: 'Communication', path: '/internal-communation', icon: MdForum, submenu: [] },
+  { id: 'communication', label: 'Communication', path: '/internal-communation', icon: MessagesSquare, group: 'workspace', submenu: [] },
 ];
 
 /** Every unique path in MENU (parents and children), used by App.js to create routes. */
@@ -121,14 +122,14 @@ export function menuPaths(menu = MENU) {
  *   - Items with "#" open the related page with ?new=…, ready for you to build that form.
  */
 export const QUICK_CREATE = [
-  { id: 'account', label: 'Account', path: '#', icon: FaRegUser, drawer: 'account' },
-  { id: 'contact', label: 'Contact', path: '#', icon: RiContactsBook3Line, drawer: 'contact' },
-  { id: 'jobs', label: 'Jobs', path: '#', icon: IoBagAddOutline, drawer: 'job' },
-  { id: 'proposal', label: 'Proposal', path: '/billing/proposalsandels/new', icon: FaRegNewspaper, to: '/billing/proposalsandels/new' },
-  { id: 'invoice', label: 'Invoice', path: '#', icon: MdAddCard, to: '/billing/Invoices?new=invoice' },
-  { id: 'task', label: 'Task', path: '#', icon: MdOutlineTask, to: `${TASKS_PATH}?new=task` },
-  { id: 'chat', label: 'Chat', path: '#', icon: IoPaperPlaneOutline, to: '/internal-communation?new=chat' },
-  { id: 'payment', label: 'Offline Payment', path: '#', icon: MdOutlinePayment, to: '/billing/Invoices?new=payment' },
+  { id: 'account', label: 'Account', path: '#', icon: Building2, shortcut: 'A', drawer: 'account' },
+  { id: 'contact', label: 'Contact', path: '#', icon: Contact, shortcut: 'C', drawer: 'contact' },
+  { id: 'jobs', label: 'Job', path: '#', icon: Briefcase, shortcut: 'J', drawer: 'job' },
+  { id: 'proposal', label: 'Proposal', path: '/billing/proposalsandels/new', icon: FileSignature, to: '/billing/proposalsandels/new' },
+  { id: 'invoice', label: 'Invoice', path: '#', icon: FilePlus2, to: '/billing/Invoices?new=invoice' },
+  { id: 'task', label: 'Task', path: '#', icon: ListTodo, shortcut: 'T', to: `${TASKS_PATH}?new=task` },
+  { id: 'chat', label: 'Chat', path: '#', icon: Send, to: '/internal-communation?new=chat' },
+  { id: 'payment', label: 'Offline Payment', path: '#', icon: CreditCard, to: '/billing/Invoices?new=payment' },
 ];
 
 /* ---------- Fonts (Settings → My Account) ---------- */
@@ -137,6 +138,10 @@ const SYS = 'system-ui, -apple-system, "Segoe UI", sans-serif';
 const MONO = 'ui-monospace, SFMono-Regular, monospace';
 
 export const FONTS = [
+  { id: 'inter', name: 'Inter', mono: 'JetBrains Mono', feel: 'Crisp, neutral, the modern SaaS default', bestFor: 'Everything — dense tables to dashboards',
+    sans: `Inter, ${SYS}`, monoStack: `"JetBrains Mono", ${MONO}`, google: 'family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500' },
+  { id: 'geist', name: 'Geist', mono: 'Geist Mono', feel: 'Precise, technical, very legible', bestFor: 'Developer-grade dashboards',
+    sans: `Geist, ${SYS}`, monoStack: `"Geist Mono", ${MONO}`, google: 'family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500' },
   { id: 'plex', name: 'IBM Plex Sans', mono: 'IBM Plex Mono', feel: 'Engineered, neutral, slightly technical', bestFor: 'Finance and accounting tools',
     sans: `"IBM Plex Sans", ${SYS}`, monoStack: `"IBM Plex Mono", ${MONO}`, google: 'family=IBM+Plex+Mono:wght@500&family=IBM+Plex+Sans:wght@400;500;600;700' },
   { id: 'public', name: 'Public Sans', mono: 'JetBrains Mono', feel: 'Plain and trustworthy', bestFor: 'Data-heavy tables, long forms',
@@ -153,5 +158,5 @@ export const FONTS = [
     sans: `Lexend, ${SYS}`, monoStack: `"Roboto Mono", ${MONO}`, google: 'family=Roboto+Mono:wght@500&family=Lexend:wght@400;500;600;700' },
 ];
 
-export const DEFAULT_FONT = 'plex';
+export const DEFAULT_FONT = 'inter';
 export const fontById = (id) => FONTS.find((f) => f.id === id) || FONTS[0];

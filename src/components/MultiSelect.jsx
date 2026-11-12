@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { FiCheck, FiChevronDown, FiPlus, FiX } from 'react-icons/fi';
+import { Check as FiCheck, ChevronsUpDown as FiChevronDown, Plus as FiPlus, X as FiX } from 'lucide-react';
 import { cx } from './ui';
 
 /**
@@ -61,41 +61,41 @@ export default function MultiSelect({
 
   return (
     <div ref={boxRef} className="relative">
-      {label && <label htmlFor={id} className="mb-1.5 flex justify-between text-sm font-semibold"><span>{label}</span>{value.length > 0 && <span className="font-normal text-muted">{value.length} selected</span>}</label>}
+      {label && <label htmlFor={id} className="mb-1.5 flex justify-between text-sm font-medium"><span>{label}</span>{value.length > 0 && <span className="font-normal text-muted-foreground">{value.length} selected</span>}</label>}
       <div onClick={() => { setOpen(true); inputRef.current?.focus(); }}
-        className={cx('flex min-h-[44px] cursor-text flex-wrap items-center gap-1.5 rounded border bg-surface px-2 py-1.5',
-          error ? 'border-danger-700' : open ? 'border-brand-600 ring-2 ring-brand-600/30' : 'border-line-strong')}>
+        className={cx('flex min-h-9 cursor-text flex-wrap items-center gap-1 rounded-md border bg-card px-1.5 py-1 shadow-xs transition-[box-shadow,border-color]',
+          error ? 'border-destructive ring-[3px] ring-destructive/15' : open ? 'border-ring ring-[3px] ring-ring/20' : 'border-input')}>
         {selected.map((o) => (
-          <span key={o.value} style={chipStyle ? chipStyle(o) : undefined} className={cx('inline-flex items-center gap-1 rounded-full py-0.5 pl-2.5 pr-1 text-sm font-semibold', chipStyle ? '' : chipClass ? chipClass(o) : 'bg-brand-100 text-brand-800')}>
+          <span key={o.value} style={chipStyle ? chipStyle(o) : undefined} className={cx('inline-flex h-6 items-center gap-0.5 rounded-md py-0.5 pl-2 pr-0.5 text-xs font-medium', chipStyle ? '' : chipClass ? chipClass(o) : 'border bg-secondary text-secondary-foreground')}>
             {o.label}
             <button type="button" aria-label={`Remove ${o.label}`} onClick={(e) => { e.stopPropagation(); toggle(o.value); }}
-              className="flex h-5 w-5 items-center justify-center rounded-full hover:bg-black/10"><FiX size={12} aria-hidden="true" /></button>
+              className="flex size-4 items-center justify-center rounded hover:bg-black/10"><FiX className="size-3" aria-hidden="true" /></button>
           </span>
         ))}
         <input id={id} ref={inputRef} role="combobox" aria-expanded={open} aria-controls={listId} aria-autocomplete="list"
           aria-activedescendant={open && rows[active] ? `${id}-opt-${active}` : undefined}
           value={query} onChange={(e) => { setQuery(e.target.value); setOpen(true); }} onFocus={() => setOpen(true)} onKeyDown={onKeyDown}
           placeholder={value.length ? '' : placeholder}
-          className="min-w-[120px] flex-1 bg-transparent px-1 py-1 outline-none placeholder:text-muted/70" />
-        <FiChevronDown aria-hidden="true" className={cx('mr-1 flex-none text-muted transition-transform', open && 'rotate-180')} />
+          className="min-w-[120px] flex-1 bg-transparent px-1.5 py-0.5 text-sm outline-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0" />
+        <FiChevronDown aria-hidden="true" className="mr-1 size-4 flex-none text-muted-foreground/70" />
       </div>
 
       {open && (
         <ul id={listId} role="listbox" aria-multiselectable="true"
-          className="absolute left-0 right-0 z-50 mt-1 max-h-60 overflow-y-auto rounded-md border border-line bg-surface p-1 shadow-pop">
-          {rows.length === 0 && <li className="px-3 py-2.5 text-sm text-muted">{emptyText}</li>}
+          className="absolute left-0 right-0 z-50 mt-1.5 max-h-64 animate-in fade-in-0 zoom-in-95 overflow-y-auto rounded-lg border bg-popover p-1 text-popover-foreground shadow-pop">
+          {rows.length === 0 && <li className="px-3 py-2.5 text-sm text-muted-foreground">{emptyText}</li>}
           {rows.map((o, i) => {
             const isSel = value.includes(o.value);
             return (
               <li key={o.value} id={`${id}-opt-${i}`} role="option" aria-selected={isSel}
                 onMouseDown={(e) => e.preventDefault()} onClick={() => pick(o)} onMouseEnter={() => setActive(i)}
-                className={cx('flex cursor-pointer items-center gap-3 rounded px-3 py-2', i === active && 'bg-subtle')}>
+                className={cx('flex cursor-pointer items-center gap-2.5 rounded-md px-2 py-1.5 text-sm', i === active && 'bg-accent text-accent-foreground')}>
                 {o.create ? (
-                  <><FiPlus aria-hidden="true" className="text-brand-600" /><span>{createLabel} “<b>{o.label}</b>”</span></>
+                  <><FiPlus aria-hidden="true" className="size-4 text-primary" /><span>{createLabel} “<b>{o.label}</b>”</span></>
                 ) : (
                   <>
-                    <span className={cx('flex h-[18px] w-[18px] flex-none items-center justify-center rounded-[5px]', isSel ? 'bg-brand-600 text-white' : 'border-2 border-[#9AA4B2]')}>{isSel && <FiCheck size={12} aria-hidden="true" />}</span>
-                    {renderOption ? renderOption(o) : <span className="flex-1">{o.label}{o.meta && <span className="ml-2 text-sm text-muted">{o.meta}</span>}</span>}
+                    <span className={cx('flex size-4 flex-none items-center justify-center rounded-[4px] border', isSel ? 'border-primary bg-primary text-primary-foreground' : 'border-line-strong')}>{isSel && <FiCheck className="size-3" strokeWidth={3} aria-hidden="true" />}</span>
+                    {renderOption ? renderOption(o) : <span className="flex-1">{o.label}{o.meta && <span className="ml-2 text-sm text-muted-foreground">{o.meta}</span>}</span>}
                   </>
                 )}
               </li>
@@ -103,7 +103,7 @@ export default function MultiSelect({
           })}
         </ul>
       )}
-      {error && <div className="mt-1 text-sm font-semibold text-danger-700">{error}</div>}
+      {error && <div className="mt-1.5 text-xs font-medium text-danger-700">{error}</div>}
     </div>
   );
 }

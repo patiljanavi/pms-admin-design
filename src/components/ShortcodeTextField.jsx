@@ -1,6 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { MdArrowDropDown, MdDataObject } from 'react-icons/md';
-import { FiSearch } from 'react-icons/fi';
+import { AlertCircle, Braces, ChevronDown, Search } from 'lucide-react';
 import { cx } from './ui';
 
 /**
@@ -9,6 +8,7 @@ import { cx } from './ui';
  */
 export default function ShortcodeTextField({ label, value = '', onChange, placeholder, shortcuts = [], required, error }) {
   const id = useId();
+  const errorId = `${id}-error`;
   const inputRef = useRef(null);
   const boxRef = useRef(null);
   const cursor = useRef(null);            // last cursor position in the input
@@ -51,40 +51,50 @@ export default function ShortcodeTextField({ label, value = '', onChange, placeh
   };
 
   return (
-    <div ref={boxRef} className="relative flex flex-col gap-1.5">
-      {label && <label htmlFor={id} className="text-sm font-semibold">{label}{required && <span className="text-danger-700"> *</span>}</label>}
-      <div className={cx('flex min-h-[44px] items-stretch overflow-hidden rounded border bg-surface focus-within:ring-2 focus-within:ring-brand-600/30',
-        error ? 'border-danger-700' : 'border-line-strong focus-within:border-brand-600')}>
-        <input id={id} ref={inputRef} value={value} placeholder={placeholder}
+    <div ref={boxRef} className="relative flex flex-col gap-2">
+      {label && (
+        <label htmlFor={id} className="flex items-center gap-0.5 text-sm font-medium leading-none text-foreground">
+          {label}{required && <span className="text-danger-700" aria-hidden="true">*</span>}
+        </label>
+      )}
+      <div className={cx('flex h-9 items-stretch overflow-hidden rounded-md border bg-card shadow-xs transition-[box-shadow,border-color]',
+        error ? 'border-destructive ring-[3px] ring-destructive/15' : 'border-input focus-within:border-ring focus-within:ring-[3px] focus-within:ring-ring/20')}>
+        <input id={id} ref={inputRef} value={value} placeholder={placeholder} aria-required={required || undefined}
+          aria-invalid={error ? true : undefined} aria-describedby={error ? errorId : undefined}
           onChange={(e) => { onChange?.(e.target.value); cursor.current = e.target.selectionStart; }}
           onClick={remember} onKeyUp={remember} onSelect={remember}
-          className="min-w-0 flex-1 bg-transparent px-3 outline-none placeholder:text-muted/70" />
-        <button type="button" onMouseDown={remember} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-label={`${label || 'Field'} shortcodes`}
-          className={cx('flex flex-none items-center gap-1 border-l border-line px-2.5 text-sm font-semibold', open ? 'bg-brand-100 text-brand-600' : 'bg-subtle text-muted hover:text-ink')}>
-          <MdDataObject className="text-[17px]" aria-hidden="true" /> Shortcodes <MdArrowDropDown aria-hidden="true" />
+          className="min-w-0 flex-1 bg-transparent px-3 text-sm text-foreground outline-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0" />
+        <button type="button" onMouseDown={remember} onClick={() => setOpen((o) => !o)} aria-expanded={open} aria-haspopup="dialog" aria-label={`${label || 'Field'} shortcodes`}
+          className={cx('flex flex-none items-center gap-1.5 border-l px-2.5 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/50',
+            open ? 'bg-accent text-foreground' : 'bg-subtle text-muted-foreground hover:bg-accent hover:text-foreground')}>
+          <Braces className="size-3.5" aria-hidden="true" />
+          <span className="hidden sm:inline">Shortcodes</span>
+          <ChevronDown className={cx('size-3.5 opacity-60 transition-transform', open && 'rotate-180')} aria-hidden="true" />
         </button>
       </div>
-      {error && <span className="text-sm text-danger-700">{error}</span>}
+      {error && <span id={errorId} className="flex items-center gap-1.5 text-xs font-medium text-danger-700"><AlertCircle className="size-3.5 flex-none" aria-hidden="true" />{error}</span>}
 
       {open && (
         <div role="dialog" aria-label={`${label || 'Field'} shortcodes`} onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } }}
-          className="absolute right-0 top-full z-30 mt-1 flex w-[min(320px,100%)] flex-col rounded-md border border-line bg-surface shadow-pop">
-          <div className="border-b border-line p-2">
-            <label className="flex min-h-[38px] items-center gap-2 rounded border border-line-strong px-2.5 focus-within:border-brand-600">
-              <FiSearch className="text-muted" aria-hidden="true" /><span className="sr-only">Search shortcodes</span>
-              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search shortcodes" className="min-w-0 flex-1 bg-transparent text-sm outline-none" />
+          className="absolute right-0 top-full z-50 mt-1.5 flex w-[min(340px,100%)] animate-in fade-in-0 zoom-in-95 flex-col overflow-hidden rounded-lg border bg-popover text-popover-foreground shadow-pop">
+          <div className="border-b p-1.5">
+            <label className="flex h-8 items-center gap-2 rounded-md px-2 focus-within:bg-accent/60">
+              <Search className="size-3.5 flex-none text-muted-foreground" aria-hidden="true" /><span className="sr-only">Search shortcodes</span>
+              <input autoFocus value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search shortcodes…"
+                className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground/70 focus-visible:ring-0 focus-visible:ring-offset-0" />
             </label>
           </div>
-          <div className="max-h-[280px] overflow-y-auto p-1.5">
+          <div className="max-h-[280px] overflow-y-auto p-1">
             {rows.map((s) => (s.isBold
-              ? <div key={`h-${s.title}`} className="px-2 pb-1 pt-2 text-xs font-bold uppercase tracking-wide text-ink">{s.title}</div>
+              ? <div key={`h-${s.title}`} className="px-2 pb-1 pt-2.5 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">{s.title}</div>
               : (
-                <button key={s.value} type="button" onClick={() => insert(s)} className="flex w-full items-center justify-between gap-3 rounded px-2 py-1.5 text-left hover:bg-subtle focus:bg-brand-50 focus:outline-none">
-                  <span className="text-sm">{s.title}</span>
-                  <code className="truncate rounded bg-brand-100 px-1.5 font-mono text-[11px] text-brand-800">[{s.value}]</code>
+                <button key={s.value} type="button" onClick={() => insert(s)}
+                  className="flex w-full items-center justify-between gap-3 rounded-md px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent focus:bg-accent focus:outline-none">
+                  <span className="truncate">{s.title}</span>
+                  <code className="max-w-[55%] flex-none truncate rounded border bg-muted px-1.5 py-px font-mono text-[11px] text-muted-foreground">[{s.value}]</code>
                 </button>
               )))}
-            {rows.length === 0 && <p className="p-4 text-center text-sm text-muted">No shortcodes found.</p>}
+            {rows.length === 0 && <p className="px-4 py-6 text-center text-sm text-muted-foreground">No shortcodes found.</p>}
           </div>
         </div>
       )}

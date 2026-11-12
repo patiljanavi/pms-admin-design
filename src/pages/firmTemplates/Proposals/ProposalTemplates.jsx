@@ -1,12 +1,18 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { FiCopy, FiDownload, FiSearch, FiTrash2 } from 'react-icons/fi';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AlertTriangle, ChevronRight, Copy, CreditCard, Download, FileSignature, ListChecks, Plus, Receipt, SearchX, Trash2, X } from 'lucide-react';
 import RowActionsMenu from '../../../components/RowActionsMenu';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import {
-  BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection,
+  BarSelect, BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection,
 } from '../../../components/TableSelection';
-import { Avatar, Modal, cx, initials } from '../../../components/ui';
+import { Avatar, Modal, initials } from '../../../components/ui';
+import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
+import { ToastBridge } from '../../../components/ui/sonner';
+import { SimpleTooltip } from '../../../components/ui/tooltip';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { DataCard, EmptyState, SearchInput, StatCard } from '../../../components/page';
 import { useData } from '../../../context/DataContext';
 import { money } from '../../../data/invoiceTemplates';
 import { proposalSteps, proposalTotal } from '../../../data/proposalTemplates';
@@ -15,6 +21,27 @@ const LIST_PATH = '/firmtemp/templates/proposals';
 const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
 const BILLING = { invoice: 'Invoices', services: 'Itemized services', '': 'Not set' };
 const billingOf = (p) => (p.general.servicesEnabled ? (p.services.option || '') : 'none');
+const BILLING_FILTER = [
+  { value: 'All', label: 'All' },
+  { value: 'invoice', label: 'Invoices' },
+  { value: 'services', label: 'Itemized services' },
+  { value: 'none', label: 'No services step' },
+];
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+const Dash = () => <span className="text-muted-foreground/60">—</span>;
+
+/** Title row for a tab inside the Firm Templates layout (the layout owns the page h1). */
+function ListHeader({ title, description, action }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
+        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
 
 /** Firm Templates → Proposals & ELs: table of proposal templates. New / Edit open ProposalTemplateForm. */
 export default function ProposalTemplates() {
@@ -47,7 +74,13 @@ export default function ProposalTemplates() {
   const filtersOn = q || billing !== 'All';
   const reset = () => { setQ(''); setBilling('All'); setSelectedOnly(false); setPage(1); };
 
-  if (!duplicateProposalTemplates) return <div role="alert" className="card bg-danger-50 p-6 font-semibold text-danger-700">Proposal templates are not set up in DataContext.js</div>;
+  if (!duplicateProposalTemplates) {
+    return (
+      <div role="alert" className="flex items-center gap-3 rounded-xl border border-danger-100 bg-danger-50 p-5 text-sm font-medium text-danger-700">
+        <AlertTriangle className="size-4 flex-none" aria-hidden="true" />Proposal templates are not set up in DataContext.js
+      </div>
+    );
+  }
 
   const openNew = () => navigate(`${LIST_PATH}/new`);
   const openEdit = (p) => navigate(`${LIST_PATH}/${p.id}`);
@@ -62,126 +95,147 @@ export default function ProposalTemplates() {
         p.services.option === 'invoice' ? p.services.invoices.length : 0, proposalTotal(p), (p.general.teamMembers || []).join('; '), p.updatedAt])]);
     notify(`Exported ${items.length} proposals`);
   };
-
-  const stats = [
-    ['Total proposals', proposalTemplates.length],
-    ['Bill with invoices', proposalTemplates.filter((p) => billingOf(p) === 'invoice').length],
-    ['Itemized services', proposalTemplates.filter((p) => billingOf(p) === 'services').length],
-    ['Collect payment', proposalTemplates.filter((p) => p.general.paymentsEnabled && p.services.option === 'invoice').length],
-  ];
+  const setBillingFilter = (v) => { setBilling(v); setPage(1); };
+  const toggleStat = (v) => setBillingFilter(billing === v ? 'All' : v);
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold">Proposal &amp; EL templates</h2>
-          <p className="text-muted">Proposals with an introduction, engagement letter, services or invoices, and payment.</p>
-        </div>
-        <button className="btn-primary" onClick={openNew}>+ New proposal template</button>
+      <ListHeader title="Proposal & EL templates" description="Proposals with an introduction, engagement letter, services or invoices, and payment."
+        action={<Button onClick={openNew}><Plus />New proposal template</Button>} />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <StatCard label="Total proposals" value={proposalTemplates.length} icon={FileSignature} />
+        <StatCard label="Bill with invoices" value={proposalTemplates.filter((p) => billingOf(p) === 'invoice').length} icon={Receipt} tone="brand"
+          onClick={() => toggleStat('invoice')} active={billing === 'invoice'} hint={billing === 'invoice' ? 'Filtered · click to clear' : 'Click to filter'} />
+        <StatCard label="Itemized services" value={proposalTemplates.filter((p) => billingOf(p) === 'services').length} icon={ListChecks}
+          onClick={() => toggleStat('services')} active={billing === 'services'} hint={billing === 'services' ? 'Filtered · click to clear' : 'Click to filter'} />
+        <StatCard label="Collect payment" value={proposalTemplates.filter((p) => p.general.paymentsEnabled && p.services.option === 'invoice').length} icon={CreditCard} tone="success" />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map(([label, n]) => (
-          <div key={label} className="card p-4 sm:p-5"><div className="text-sm text-muted">{label}</div><div className="mt-1.5 text-2xl font-bold">{n}</div></div>
-        ))}
-      </div>
+      <DataCard
+        toolbar={<>
+          <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} label="Search proposals"
+            placeholder="Search template, proposal name, team" className="h-8 w-full sm:w-72" />
+          <BarSelect label="Billing" value={billing} onChange={setBillingFilter} options={BILLING_FILTER} />
+          {filtersOn ? <Button variant="ghost" size="sm" onClick={reset} className="text-muted-foreground">Reset<X /></Button> : null}
+          <span className="ml-auto hidden text-sm tabular-nums text-muted-foreground md:inline">{filtered.length} of {proposalTemplates.length}</span>
+        </>}
+        footer={filtered.length > 0 && <Pagination {...paging} label="proposals" />}
+      >
+        <Table className="min-w-[1000px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10"><HeaderCheckbox selection={selection} pageIds={rows.map((p) => p.id)} /></TableHead>
+              <TableHead>Template</TableHead>
+              <TableHead>Steps</TableHead>
+              <TableHead>Billing</TableHead>
+              <TableHead className="text-right">Total</TableHead>
+              <TableHead>Team</TableHead>
+              <TableHead>Updated</TableHead>
+              <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((p) => {
+              const checked = selection.has(p.id);
+              const b = billingOf(p);
+              const team = p.general.teamMembers || [];
+              const steps = proposalSteps(p).slice(1);
+              return (
+                <TableRow key={p.id} data-state={checked ? 'selected' : undefined} aria-selected={checked}>
+                  <TableCell><SelectCheckbox label={`Select ${p.general.templateName}`} checked={checked} onChange={() => selection.toggle(p.id)} /></TableCell>
+                  <TableCell className="max-w-[300px]">
+                    <Link to={`${LIST_PATH}/${p.id}`} className="block truncate font-medium text-foreground underline-offset-4 hover:underline">{p.general.templateName}</Link>
+                    {p.general.proposalName && <div className="truncate font-mono text-xs text-muted-foreground">{p.general.proposalName}</div>}
+                  </TableCell>
+                  <TableCell>
+                    <div className="flex flex-wrap items-center gap-0.5">
+                      {steps.map((s, i) => (
+                        <span key={s.key} className="inline-flex items-center gap-0.5">
+                          {i > 0 && <ChevronRight className="size-3 text-muted-foreground/50" aria-hidden="true" />}
+                          <Badge variant="neutral" className="px-1.5 font-medium">{s.name}</Badge>
+                        </span>
+                      ))}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {b === 'none' ? <Dash />
+                      : b === 'invoice' ? (
+                        <span className="inline-flex items-center gap-1.5">
+                          <Badge variant="info"><Receipt aria-hidden="true" />{p.services.invoices.length} invoice{p.services.invoices.length === 1 ? '' : 's'}</Badge>
+                          {p.general.paymentsEnabled && <Badge variant="success"><CreditCard aria-hidden="true" />payment</Badge>}
+                        </span>
+                      )
+                        : b === 'services' ? <Badge variant="violet"><ListChecks aria-hidden="true" />{BILLING[b]}</Badge>
+                          : <Badge variant="neutral">{BILLING[b]}</Badge>}
+                  </TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">{b === 'none' || !b ? <Dash /> : money(proposalTotal(p))}</TableCell>
+                  <TableCell>
+                    {team.length ? (
+                      <SimpleTooltip label={team.join(', ')}>
+                        <span tabIndex={0} className="inline-flex items-center gap-2 rounded-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+                          <span className="flex -space-x-1">
+                            {team.slice(0, 3).map((n) => <span key={n} className="rounded-full ring-2 ring-card"><Avatar text={initials(n)} size="xs" /></span>)}
+                          </span>
+                          {team.length > 3 && <span className="text-xs tabular-nums text-muted-foreground">+{team.length - 3}</span>}
+                        </span>
+                      </SimpleTooltip>
+                    ) : <Dash />}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{fmtDate(p.updatedAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <RowActionsMenu label={p.general.templateName} onEdit={() => openEdit(p)}
+                      onDuplicate={() => { duplicateProposalTemplates([p.id]); notify(`Duplicated “${p.general.templateName}”`); }}
+                      onDelete={() => setConfirm([p])} />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {filtered.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={8}>
+                  {proposalTemplates.length ? (
+                    <EmptyState icon={SearchX} title="No proposals match these filters" description="Try a different search or billing option."
+                      action={<Button variant="outline" onClick={reset}>Clear filters</Button>} />
+                  ) : (
+                    <EmptyState icon={FileSignature} title="No proposal templates yet" description="Put your introduction, engagement letter and pricing together once, then send it to any client."
+                      action={<Button onClick={openNew}><Plus />New proposal template</Button>} />
+                  )}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </DataCard>
 
-      <section className="card overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
-          <label className="flex min-h-[44px] flex-[1_1_240px] items-center gap-2 rounded border border-line-strong px-3 focus-within:border-brand-600">
-            <FiSearch size={18} className="text-muted" aria-hidden="true" /><span className="sr-only">Search proposals</span>
-            <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search template, proposal name, team" className="min-w-0 flex-1 bg-transparent outline-none" />
-          </label>
-          <label className="flex items-center gap-2 text-muted">Billing
-            <select value={billing} onChange={(e) => { setBilling(e.target.value); setPage(1); }} className="input min-h-[44px] w-auto">
-              <option value="All">All</option>
-              <option value="invoice">Invoices</option>
-              <option value="services">Itemized services</option>
-              <option value="none">No services step</option>
-            </select>
-          </label>
-          {filtersOn ? <button onClick={reset} className="btn-link px-2">Clear filters</button> : null}
-        </div>
-
-        <BulkBar count={selection.count} total={filtered.length}
-          onSelectAll={() => selection.setMany(filtered.map((p) => p.id), true)} onClear={selection.clear}
-          filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-          actions={<>
-            <button className={barButton} onClick={() => { duplicateProposalTemplates([...selection.ids]); notify(`Duplicated ${selection.count} proposal${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><FiCopy aria-hidden="true" /> Duplicate</button>
-            <button className={barButton} onClick={() => exportCsv(selected)}><FiDownload aria-hidden="true" /> Export</button>
-            <button className={barDanger} onClick={() => setConfirm(selected)}><FiTrash2 aria-hidden="true" /> Delete</button>
-          </>}
-        />
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1000px] border-collapse">
-            <thead>
-              <tr className="bg-subtle text-left text-xs uppercase tracking-wide text-muted">
-                <th className="w-12 py-3 pl-5 pr-1"><HeaderCheckbox selection={selection} pageIds={rows.map((p) => p.id)} /></th>
-                <th className="px-3 py-3 font-semibold">Template</th>
-                <th className="px-3 py-3 font-semibold">Steps</th>
-                <th className="px-3 py-3 font-semibold">Billing</th>
-                <th className="px-3 py-3 text-right font-semibold">Total</th>
-                <th className="px-3 py-3 font-semibold">Team</th>
-                <th className="px-3 py-3 font-semibold">Updated</th>
-                <th className="px-5 py-3 text-right font-semibold"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((p) => {
-                const checked = selection.has(p.id);
-                const b = billingOf(p);
-                return (
-                  <tr key={p.id} aria-selected={checked} className={cx('border-t border-line-soft', checked ? 'bg-brand-50' : 'hover:bg-subtle/60')}>
-                    <td className="py-3 pl-5 pr-1"><SelectCheckbox label={`Select ${p.general.templateName}`} checked={checked} onChange={() => selection.toggle(p.id)} /></td>
-                    <td className="max-w-[300px] px-3 py-3">
-                      <button onClick={() => openEdit(p)} className="text-left font-semibold hover:text-brand-600 hover:underline">{p.general.templateName}</button>
-                      <div className="truncate font-mono text-xs text-muted">{p.general.proposalName}</div>
-                    </td>
-                    <td className="px-3 py-3">
-                      <div className="flex flex-wrap gap-1">
-                        {proposalSteps(p).slice(1).map((s) => <span key={s.key} className="rounded bg-subtle px-1.5 py-0.5 text-xs font-semibold text-muted">{s.name}</span>)}
-                      </div>
-                    </td>
-                    <td className="px-3 py-3 text-sm">{b === 'none' ? <span className="text-muted">—</span>
-                      : b === 'invoice' ? <span>{p.services.invoices.length} invoice{p.services.invoices.length === 1 ? '' : 's'}{p.general.paymentsEnabled ? ' · payment' : ''}</span>
-                        : BILLING[b]}</td>
-                    <td className="px-3 py-3 text-right font-semibold">{b === 'none' || !b ? <span className="font-normal text-muted">—</span> : money(proposalTotal(p))}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex -space-x-2" title={(p.general.teamMembers || []).join(', ')}>
-                        {(p.general.teamMembers || []).slice(0, 3).map((n) => <span key={n} className="rounded-full ring-2 ring-surface"><Avatar text={initials(n)} size="sm" tone="solid" /></span>)}
-                      </div>
-                    </td>
-                    <td className="whitespace-nowrap px-3 py-3 text-muted">{fmtDate(p.updatedAt)}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex justify-end">
-                        <RowActionsMenu label={p.general.templateName} onEdit={() => openEdit(p)}
-                          onDuplicate={() => { duplicateProposalTemplates([p.id]); notify(`Duplicated “${p.general.templateName}”`); }}
-                          onDelete={() => setConfirm([p])} />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="flex flex-col items-center gap-3 p-12 text-center text-muted">
-              {proposalTemplates.length ? 'No proposals match these filters.' : 'No proposal templates yet.'}
-              {proposalTemplates.length ? <button onClick={reset} className="btn-secondary">Clear filters</button> : <button onClick={openNew} className="btn-primary">+ New proposal template</button>}
-            </div>
-          )}
-        </div>
-        <Pagination {...paging} label="proposals" />
-      </section>
+      <BulkBar count={selection.count} total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((p) => p.id), true)} onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <button type="button" className={barButton} onClick={() => { duplicateProposalTemplates([...selection.ids]); notify(`Duplicated ${selection.count} proposal${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
+          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
 
       {confirm && (
-        <Modal title={confirm.length === 1 ? `Delete “${confirm[0].general.templateName}”?` : `Delete ${confirm.length} proposals?`} onClose={() => setConfirm(null)}
-          footer={<><button className="btn-secondary" onClick={() => setConfirm(null)}>Cancel</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={remove}>Delete</button></>}>
-          <p className="text-muted">Proposals already sent from {confirm.length === 1 ? 'this template' : 'these templates'} are not affected.</p>
+        <Modal title={confirm.length === 1 ? `Delete “${confirm[0].general.templateName}”?` : `Delete ${confirm.length} proposals?`}
+          description={`Proposals already sent from ${confirm.length === 1 ? 'this template' : 'these templates'} are not affected.`}
+          onClose={() => setConfirm(null)}
+          footer={<><Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={remove}><Trash2 />{confirm.length > 1 ? `Delete ${plural(confirm.length, 'proposal')}` : 'Delete'}</Button></>}>
+          <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border">
+            {confirm.map((p) => (
+              <li key={p.id} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+                <FileSignature className="size-4 flex-none text-muted-foreground" aria-hidden="true" />
+                <span className="truncate font-medium">{p.general.templateName}</span>
+                {p.general.proposalName && <span className="truncate font-mono text-xs text-muted-foreground">{p.general.proposalName}</span>}
+              </li>
+            ))}
+          </ul>
         </Modal>
       )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
+      <ToastBridge message={toast} />
     </div>
   );
 }

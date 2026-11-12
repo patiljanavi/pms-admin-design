@@ -1,10 +1,20 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FiCopy, FiDownload, FiEdit2, FiFileText, FiSearch, FiTrash2, FiX } from 'react-icons/fi';
+import { Copy, Download, FileText, Filter, LayoutTemplate, Plus, SearchX, Trash2, X } from 'lucide-react';
 import Pagination, { usePagination } from '../../components/Pagination';
+import RowActionsMenu from '../../components/RowActionsMenu';
 import {
   BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection,
 } from '../../components/TableSelection';
-import { Drawer, Modal, cx } from '../../components/ui';
+import { DataCard, EmptyState, SearchInput, StatCard } from '../../components/page';
+import { CloseButton, Drawer, Modal } from '../../components/ui';
+import { Button } from '../../components/ui/button';
+import { Input } from '../../components/ui/input';
+import { Textarea } from '../../components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../components/ui/table';
+import { TooltipProvider } from '../../components/ui/tooltip';
+import { ToastBridge } from '../../components/ui/sonner';
+import { Field, ListHeader, NameCell, SelectFilter, SortHead, invalidProps, sortRows } from './templateKit';
 
 const today = () => new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
@@ -24,6 +34,7 @@ export default function TemplatesTable({ title, singular, columns, fields, rows:
   const [rows, setRows] = useState(initialRows);
   const [q, setQ] = useState('');
   const [filter, setFilter] = useState('All');
+  const [sort, setSort] = useState(null);
   const [drawer, setDrawer] = useState(null);   // null = closed · 'new' · or the row being edited
   const [confirm, setConfirm] = useState(null); // rows to delete
   const [toast, setToast] = useState('');
@@ -38,10 +49,11 @@ export default function TemplatesTable({ title, singular, columns, fields, rows:
 
   const filtered = useMemo(() => {
     const s = q.trim().toLowerCase();
-    return rows.filter((r) => (filter === 'All' || String(r[filterKey]) === filter)
+    const list = rows.filter((r) => (filter === 'All' || String(r[filterKey]) === filter)
       && (!selectedOnly || selection.has(r.id))
       && (!s || Object.values(r).join(' ').toLowerCase().includes(s)));
-  }, [rows, q, filter, filterKey, selectedOnly, selection]);
+    return sortRows(list, sort, Object.fromEntries(columns.map((c) => [c.key, (r) => r[c.key]])));
+  }, [rows, q, filter, filterKey, selectedOnly, selection, sort, columns]);
 
   const paging = usePagination(filtered, { initialSize: 10 });
   const { pageItems, setPage } = paging;
@@ -76,111 +88,114 @@ export default function TemplatesTable({ title, singular, columns, fields, rows:
     notify(`Exported ${items.length} templates`);
   };
 
-  // stat cards: total + up to 3 filter values
-  const stats = [['Total templates', rows.length],
-    ...(filterField ? filterOptions.slice(1, 4).map((v) => [v, rows.filter((r) => String(r[filterKey]) === v).length]) : [])];
+  // stat cards: total + up to 3 filter values (click one to filter by it)
+  const stats = filterField ? filterOptions.slice(1, 4).map((v) => [v, rows.filter((r) => String(r[filterKey]) === v).length]) : [];
+  const colCount = columns.length + 2;
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <h2 className="text-2xl font-bold">{title}</h2>
-        <button className="btn-primary" onClick={() => setDrawer('new')}>+ New {singular}</button>
-      </div>
+    <TooltipProvider delayDuration={300}>
+      <div className="flex flex-col gap-6">
+        <ListHeader title={title}
+          actions={<>
+            <Button onClick={() => setDrawer('new')} aria-label={`+ New ${singular}`}><Plus />New {singular}</Button>
+          </>} />
 
-      {/* Stat cards */}
-      <div className={cx('grid grid-cols-2 gap-4', stats.length >= 4 ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
-        {stats.map(([label, n]) => (
-          <div key={label} className="card p-4 sm:p-5"><div className="text-sm text-muted">{label}</div><div className="mt-1.5 text-2xl font-bold">{n}</div></div>
-        ))}
-      </div>
-
-      <section className="card overflow-hidden">
-        {/* Search + filter */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
-          <label className="flex min-h-[42px] flex-[1_1_240px] items-center gap-2 rounded border border-line-strong px-3 focus-within:border-brand-600">
-            <FiSearch size={18} className="text-muted" aria-hidden="true" /><span className="sr-only">Search {title.toLowerCase()}</span>
-            <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder={`Search ${title.toLowerCase()}`} className="min-w-0 flex-1 bg-transparent outline-none" />
-          </label>
-          {filterField && (
-            <label className="flex items-center gap-2 text-muted">{filterField.label}
-              <select value={filter} onChange={(e) => { setFilter(e.target.value); setPage(1); }} className="input min-h-[42px] w-auto">
-                {filterOptions.map((o) => <option key={o}>{o}</option>)}
-              </select>
-            </label>
-          )}
-          {filtersOn ? <button onClick={reset} className="btn-link px-2">Clear filters</button> : null}
+        <div className={stats.length >= 3 ? 'grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4' : 'grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4'}>
+          <StatCard label="Total templates" value={rows.length} icon={LayoutTemplate} />
+          {stats.map(([label, n]) => (
+            <StatCard key={label} label={label} value={n} active={filter === label}
+              hint={filter === label ? 'Showing only these · click to clear' : 'Click to filter'}
+              onClick={() => { setFilter((cur) => (cur === label ? 'All' : label)); setPage(1); }} />
+          ))}
         </div>
+
+        <DataCard
+          toolbar={<>
+            <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} label={`Search ${title.toLowerCase()}`}
+              placeholder={`Search ${title.toLowerCase()}…`} className="h-8 w-full sm:w-72" />
+            {filterField && (
+              <SelectFilter label={filterField.label} icon={Filter} value={filter} onChange={(v) => { setFilter(v); setPage(1); }} options={filterOptions} />
+            )}
+            {filtersOn ? <Button variant="ghost" size="sm" onClick={reset} className="text-muted-foreground">Reset<X /></Button> : null}
+            <span className="ml-auto hidden text-sm tabular-nums text-muted-foreground md:inline">{filtered.length} of {rows.length}</span>
+          </>}
+          footer={filtered.length > 0 && <Pagination {...paging} label="templates" />}
+        >
+          <Table className="min-w-[720px]">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10"><HeaderCheckbox selection={selection} pageIds={pageItems.map((r) => r.id)} /></TableHead>
+                {columns.map((c) => (c.render
+                  ? <TableHead key={c.key}>{c.label}</TableHead>
+                  : <SortHead key={c.key} label={c.label} col={c.key} sort={sort} setSort={setSort} />))}
+                <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {pageItems.map((r) => {
+                const checked = selection.has(r.id);
+                return (
+                  <TableRow key={r.id} data-state={checked ? 'selected' : undefined}>
+                    <TableCell><SelectCheckbox label={`Select ${r.name}`} checked={checked} onChange={() => selection.toggle(r.id)} /></TableCell>
+                    {columns.map((c, i) => (
+                      <TableCell key={c.key} className={i === 0 ? 'max-w-[320px]' : 'text-muted-foreground'}>
+                        {i === 0 && c.key === 'name'
+                          ? <NameCell icon={FileText} name={r.name} onOpen={() => setDrawer(r)} />
+                          : (c.render ? c.render(r) : r[c.key])}
+                      </TableCell>
+                    ))}
+                    <TableCell className="text-right">
+                      <RowActionsMenu label={r.name} onEdit={() => setDrawer(r)} onDuplicate={() => duplicate([r])} onDelete={() => setConfirm([r])} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {filtered.length === 0 && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={colCount}>
+                    {rows.length ? (
+                      <EmptyState icon={SearchX} title="No templates match" description="Try a different search or remove the filter."
+                        action={<Button variant="outline" onClick={reset}>Clear filters</Button>} />
+                    ) : (
+                      <EmptyState icon={LayoutTemplate} title="No templates yet" description={`Create your first ${singular} to reuse it across the firm.`}
+                        action={<Button onClick={() => setDrawer('new')}><Plus />New {singular}</Button>} />
+                    )}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </DataCard>
 
         {/* Shown while rows are selected */}
         <BulkBar count={selection.count} total={filtered.length}
           onSelectAll={() => selection.setMany(filtered.map((r) => r.id), true)} onClear={selection.clear}
           filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
           actions={<>
-            <button className={barButton} onClick={() => { duplicate(selectedRows); selection.clear(); }}><FiCopy aria-hidden="true" /> Duplicate</button>
-            <button className={barButton} onClick={() => exportCsv(selectedRows)}><FiDownload aria-hidden="true" /> Export</button>
-            <button className={barDanger} onClick={() => setConfirm(selectedRows)}><FiTrash2 aria-hidden="true" /> Delete</button>
+            <button type="button" className={barButton} onClick={() => { duplicate(selectedRows); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
+            <button type="button" className={barButton} onClick={() => exportCsv(selectedRows)}><Download aria-hidden="true" />Export</button>
+            <button type="button" className={barDanger} onClick={() => setConfirm(selectedRows)}><Trash2 aria-hidden="true" />Delete</button>
           </>}
         />
 
-        {/* Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] border-collapse">
-            <thead>
-              <tr className="bg-subtle text-left text-xs uppercase tracking-wide text-muted">
-                <th className="w-12 py-3 pl-5 pr-1"><HeaderCheckbox selection={selection} pageIds={pageItems.map((r) => r.id)} /></th>
-                {columns.map((c) => <th key={c.key} className="px-3 py-3 font-semibold">{c.label}</th>)}
-                <th className="px-5 py-3 text-right font-semibold"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {pageItems.map((r) => {
-                const checked = selection.has(r.id);
-                return (
-                  <tr key={r.id} aria-selected={checked} className={cx('border-t border-line-soft', checked ? 'bg-brand-50' : 'hover:bg-subtle/60')}>
-                    <td className="py-3 pl-5 pr-1"><SelectCheckbox label={`Select ${r.name}`} checked={checked} onChange={() => selection.toggle(r.id)} /></td>
-                    {columns.map((c, i) => (
-                      <td key={c.key} className="px-3 py-3">
-                        {i === 0 && c.key === 'name'
-                          ? <button onClick={() => setDrawer(r)} className="text-left font-semibold hover:text-brand-600 hover:underline">{r.name}</button>
-                          : (c.render ? c.render(r) : r[c.key])}
-                      </td>
-                    ))}
-                    <td className="px-5 py-3">
-                      <div className="flex justify-end gap-1">
-                        <button onClick={() => setDrawer(r)} aria-label={`Edit ${r.name}`} className="flex h-9 w-9 items-center justify-center rounded text-muted hover:bg-subtle hover:text-ink"><FiEdit2 aria-hidden="true" /></button>
-                        <button onClick={() => duplicate([r])} aria-label={`Duplicate ${r.name}`} className="flex h-9 w-9 items-center justify-center rounded text-muted hover:bg-subtle hover:text-ink"><FiCopy aria-hidden="true" /></button>
-                        <button onClick={() => setConfirm([r])} aria-label={`Delete ${r.name}`} className="flex h-9 w-9 items-center justify-center rounded text-danger-700 hover:bg-danger-50"><FiTrash2 aria-hidden="true" /></button>
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="flex flex-col items-center gap-3 p-12 text-center text-muted">
-              {rows.length ? 'No templates match these filters.' : 'No templates yet.'}
-              {rows.length ? <button onClick={reset} className="btn-secondary">Clear filters</button> : <button onClick={() => setDrawer('new')} className="btn-primary">+ New {singular}</button>}
-            </div>
-          )}
-        </div>
-        <Pagination {...paging} label="templates" />
-      </section>
+        {drawer && (
+          <TemplateFormDrawer key={drawer === 'new' ? 'new' : drawer.id} singular={singular} fields={fields}
+            row={drawer === 'new' ? null : drawer} onClose={() => setDrawer(null)} onSave={save} onDelete={() => setConfirm([drawer])} />
+        )}
 
-      {drawer && (
-        <TemplateFormDrawer key={drawer === 'new' ? 'new' : drawer.id} singular={singular} fields={fields}
-          row={drawer === 'new' ? null : drawer} onClose={() => setDrawer(null)} onSave={save} onDelete={() => setConfirm([drawer])} />
-      )}
-
-      {confirm && (
-        <Modal title={confirm.length === 1 ? `Delete “${confirm[0].name}”?` : `Delete ${confirm.length} templates?`} onClose={() => setConfirm(null)}
-          footer={<><button className="btn-secondary" onClick={() => setConfirm(null)}>Cancel</button>
-            <button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={remove}>Delete</button></>}>
-          <p className="text-muted">This can't be undone.</p>
-        </Modal>
-      )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
-    </div>
+        {confirm && (
+          <Modal title={confirm.length === 1 ? `Delete “${confirm[0].name}”?` : `Delete ${confirm.length} templates?`}
+            description="This can't be undone." onClose={() => setConfirm(null)}
+            footer={<><Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button>
+              <Button variant="destructive" onClick={remove}>Delete</Button></>}>
+            <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border">
+              {confirm.map((r) => <li key={r.id} className="truncate px-3 py-2 text-sm font-medium">{r.name}</li>)}
+            </ul>
+          </Modal>
+        )}
+        <ToastBridge message={toast} />
+      </div>
+    </TooltipProvider>
   );
 }
 
@@ -203,34 +218,51 @@ function TemplateFormDrawer({ singular, fields, row, onClose, onSave, onDelete }
 
   return (
     <Drawer onClose={onClose} label={isNew ? `New ${singular}` : `Edit ${row.name}`} width="max-w-[560px]">
-      <div className="flex items-center gap-4 border-b border-line p-5 sm:p-6">
-        <span className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-brand-600 text-white" aria-hidden="true"><FiFileText size={22} /></span>
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-xl font-bold">{String(form.name || '').trim() || (isNew ? `New ${singular}` : row.name)}</h2>
-          <div className="truncate text-muted">{isNew ? `Create a ${singular}` : `Last updated ${row.updated || '—'}`}</div>
+      <div className="flex h-full flex-col">
+        <div className="flex items-start gap-3 border-b px-6 py-5">
+          <span className="flex size-10 flex-none items-center justify-center rounded-xl border bg-subtle text-muted-foreground" aria-hidden="true"><FileText className="size-5" /></span>
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-lg font-semibold tracking-tight">{String(form.name || '').trim() || (isNew ? `New ${singular}` : row.name)}</h2>
+            <p className="truncate text-sm text-muted-foreground">{isNew ? `Create a ${singular}` : `Last updated ${row.updated || '—'}`}</p>
+          </div>
+          <CloseButton onClick={onClose} />
         </div>
-        <button onClick={onClose} aria-label="Close" className="flex h-10 w-10 flex-none items-center justify-center rounded text-muted hover:bg-subtle"><FiX size={20} /></button>
-      </div>
 
-      <form className="flex flex-1 flex-col gap-4 p-5 sm:p-6" noValidate onSubmit={(e) => { e.preventDefault(); submit(); }}>
-        {fields.map((f) => (
-          <label key={f.key} className="field-label">
-            <span>{f.label}{f.required && ' *'}</span>
-            {f.type === 'textarea' && <textarea className={cx('input min-h-[110px] py-2.5', errors[f.key] && 'border-danger-700')} value={form[f.key]} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder} />}
-            {f.type === 'select' && <select className="input" value={form[f.key]} onChange={(e) => set(f.key, e.target.value)}>{f.options.map((o) => <option key={o}>{o}</option>)}</select>}
-            {f.type === 'number' && <input className="input w-36" type="number" min="0" value={form[f.key]} onChange={(e) => set(f.key, e.target.value)} />}
-            {(!f.type || f.type === 'text') && <input className={cx('input', errors[f.key] && 'border-danger-700')} value={form[f.key]} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder} />}
-            {errors[f.key] && <span className="text-sm font-normal text-danger-700">{errors[f.key]}</span>}
-          </label>
-        ))}
-        <button type="submit" className="hidden" tabIndex={-1} aria-hidden="true" />
-      </form>
+        <form className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-5" noValidate onSubmit={(e) => { e.preventDefault(); submit(); }}>
+          {fields.map((f) => {
+            const id = `tpl-field-${f.key}`;
+            const err = errors[f.key];
+            return (
+              <Field key={f.key} id={id} label={f.label} required={f.required} error={err}>
+                {f.type === 'textarea' && (
+                  <Textarea id={id} className="min-h-[110px]" value={form[f.key]} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder} {...invalidProps(id, err)} />
+                )}
+                {f.type === 'select' && (
+                  <Select value={String(form[f.key] ?? '')} onValueChange={(v) => set(f.key, v)}>
+                    <SelectTrigger id={id} {...invalidProps(id, err)}><SelectValue /></SelectTrigger>
+                    <SelectContent>{f.options.map((o) => <SelectItem key={o} value={o}>{o}</SelectItem>)}</SelectContent>
+                  </Select>
+                )}
+                {f.type === 'number' && (
+                  <Input id={id} className="w-36" type="number" min="0" value={form[f.key]} onChange={(e) => set(f.key, e.target.value)} {...invalidProps(id, err)} />
+                )}
+                {(!f.type || f.type === 'text') && (
+                  <Input id={id} value={form[f.key]} onChange={(e) => set(f.key, e.target.value)} placeholder={f.placeholder} {...invalidProps(id, err)} />
+                )}
+              </Field>
+            );
+          })}
+          <button type="submit" className="hidden" tabIndex={-1} aria-hidden="true" />
+        </form>
 
-      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2.5 border-t border-line bg-subtle px-5 py-4 sm:px-6">
-        {!isNew ? <button type="button" onClick={onDelete} className="inline-flex min-h-[44px] items-center gap-2 rounded px-3 font-semibold text-danger-700 hover:bg-danger-50"><FiTrash2 aria-hidden="true" /> Delete</button> : <span />}
-        <div className="flex gap-2.5">
-          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn-primary" onClick={submit}>{isNew ? 'Create template' : 'Save changes'}</button>
+        <div className="flex flex-wrap items-center justify-between gap-2 border-t bg-subtle px-6 py-3.5">
+          {!isNew
+            ? <Button type="button" variant="ghost" onClick={onDelete} className="text-danger-700 hover:bg-danger-50 hover:text-danger-700"><Trash2 />Delete</Button>
+            : <span />}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+            <Button type="button" onClick={submit}>{isNew ? 'Create template' : 'Save changes'}</Button>
+          </div>
         </div>
       </div>
     </Drawer>

@@ -1,13 +1,21 @@
 import { useState } from 'react';
-import { FiClipboard, FiEye, FiPlus, FiX } from 'react-icons/fi';
+import { Bell, ClipboardList, Eye, Plus } from 'lucide-react';
 import MultiSelect from '../MultiSelect';
 import ShortcodeTextField from '../ShortcodeTextField';
 import OrganizerPreview from './OrganizerPreview';
-import { Avatar, Drawer, Toggle, cx, initials } from '../ui';
+import SettingsCard, { DrawerLayout, Field } from './SettingsCard';
+import { Avatar, Drawer, initials } from '../ui';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from '../ui/select';
+import { cn } from 'lib/utils';
 import { useData } from '../../context/DataContext';
 import { accountShortcuts } from '../../data/shortcodes';
 import { fillShortcodes } from '../../data/accountChats';
 import { questionCount } from '../../data/organizerTemplates';
+
+const NONE = '__none';
 
 /**
  * Create organizer drawer: Accounts · Organizer Template · Organizer Name · Preview Mode · Reminders.
@@ -48,62 +56,62 @@ export default function CreateOrganizerDrawer({ defaultAccountIds = [], onCreate
   return (
     <>
       <Drawer onClose={onClose} label="Create organizer" width="max-w-[600px]">
-        <div className="flex items-center gap-3 border-b border-line bg-subtle/60 px-6 py-5">
-          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-600 text-white" aria-hidden="true"><FiClipboard /></span>
-          <div className="flex-1"><h2 className="text-lg font-semibold">Create organizer</h2><p className="text-sm text-muted">Send a questionnaire from a template</p></div>
-          <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-subtle hover:text-ink"><FiX /></button>
-        </div>
-
-        <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-6">
-          <MultiSelect label="Accounts *" placeholder="Select accounts" options={accounts.map((a) => ({ value: a.id, label: a.name, meta: a.company }))} value={form.accountIds}
-            onChange={(v) => set({ accountIds: v })} error={errors.accountIds}
-            renderOption={(o) => <span className="flex flex-1 items-center gap-2.5"><Avatar text={initials(o.label)} size="sm" /><span><span className="block font-semibold">{o.label}</span><span className="block text-xs text-muted">{o.meta}</span></span></span>} />
-          {form.accountIds.length > 1 && <p className="-mt-3 text-xs text-muted">A separate organizer is created for each account.</p>}
-
-          <label className="field-label">
-            <span>Organizer Template <span className="text-danger-700">*</span></span>
-            <select className={cx('input', errors.templateId && 'border-danger-700')} value={form.templateId} onChange={(e) => handleOrganizerTemplateChange(e.target.value)}>
-              <option value="">None</option>
-              {organizerTemplates.map((t) => <option key={t.id} value={t.id}>{t.templatename}</option>)}
-            </select>
-            {template && <span className="text-xs font-normal text-muted">{template.sections.length} sections · {questionCount(template)} questions</span>}
-            {errors.templateId && <span className="text-sm font-normal text-danger-700">{errors.templateId}</span>}
-          </label>
-
-          <div>
-            <ShortcodeTextField label="Organizer Name" required value={form.organizerName} onChange={(v) => set({ organizerName: v })} placeholder="Organizer Name"
-              shortcuts={accountShortcuts} error={errors.organizerName} />
-            <p className="mt-1.5 text-xs text-muted">Shortcodes are filled in for each account{firstAccount && form.organizerName.includes('[') ? <> — e.g. “{fillShortcodes(form.organizerName, firstAccount)}”</> : '.'}</p>
-          </div>
-
-          <div>
-            <button type="button" className="btn-secondary" onClick={handlePreview}><FiEye aria-hidden="true" /> Preview Mode</button>
-            <p className="mt-1.5 text-xs text-muted">See the organizer the way the client will.</p>
-          </div>
-
-          <div className="rounded-lg border border-line p-4">
-            <div className="flex items-center justify-between gap-4">
-              <span className="font-semibold">Reminders</span>
-              <Toggle label="Reminders" checked={form.reminder} onChange={(v) => set({ reminder: v })} />
+        <DrawerLayout icon={ClipboardList} title="Create organizer" description="Send a questionnaire from a template" onClose={onClose}
+          footer={<>
+            <Button variant="outline" onClick={onClose}>Cancel</Button>
+            <Button onClick={createOrganizerOfAccount}><Plus aria-hidden="true" /> Create</Button>
+          </>}>
+          <div className="flex flex-col gap-5">
+            <div>
+              <MultiSelect label="Accounts *" placeholder="Select accounts" options={accounts.map((a) => ({ value: a.id, label: a.name, meta: a.company }))} value={form.accountIds}
+                onChange={(v) => set({ accountIds: v })} error={errors.accountIds}
+                renderOption={(o) => <span className="flex flex-1 items-center gap-2.5"><Avatar text={initials(o.label)} size="sm" /><span><span className="block font-medium">{o.label}</span><span className="block text-xs text-muted-foreground">{o.meta}</span></span></span>} />
+              {form.accountIds.length > 1 && <p className="mt-1.5 text-xs text-muted-foreground">A separate organizer is created for each account.</p>}
             </div>
-            {form.reminder && (
-              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label className="field-label">Days until next reminder
-                  <input type="number" min="1" className={cx('input', errors.reminders && 'border-danger-700')} value={form.days} onChange={(e) => set({ days: e.target.value, reminders: undefined })} />
-                </label>
-                <label className="field-label">No Of reminders
-                  <input type="number" min="1" className={cx('input', errors.reminders && 'border-danger-700')} value={form.count} onChange={(e) => set({ count: e.target.value, reminders: undefined })} />
-                </label>
-                {errors.reminders && <p role="alert" className="text-sm text-danger-700 sm:col-span-2">{errors.reminders}</p>}
-              </div>
-            )}
-          </div>
-        </div>
 
-        <div className="sticky bottom-0 flex justify-end gap-3 border-t border-line bg-subtle px-6 py-4">
-          <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="btn-primary" onClick={createOrganizerOfAccount}><FiPlus aria-hidden="true" /> Create</button>
-        </div>
+            <Field label="Organizer Template" required error={errors.templateId}>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <Select value={form.templateId ? String(form.templateId) : NONE}
+                  onValueChange={(v) => handleOrganizerTemplateChange(v === NONE ? '' : organizerTemplates.find((t) => String(t.id) === v)?.id)}>
+                  <SelectTrigger aria-label="Organizer Template" aria-invalid={!!errors.templateId} className={cn('flex-1', errors.templateId && 'border-danger-700')}>
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value={NONE}>None</SelectItem>
+                    {organizerTemplates.length > 0 && <SelectSeparator />}
+                    {organizerTemplates.map((t) => <SelectItem key={t.id} value={String(t.id)}>{t.templatename}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Button type="button" variant="outline" onClick={handlePreview}><Eye aria-hidden="true" /> Preview Mode</Button>
+              </div>
+              {template ? (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <Badge variant="neutral">{template.sections.length} sections</Badge>
+                  <Badge variant="neutral">{questionCount(template)} questions</Badge>
+                  <span className="text-xs text-muted-foreground">Preview shows the organizer the way the client will.</span>
+                </div>
+              ) : !errors.templateId && <p className="text-xs text-muted-foreground">See the organizer the way the client will with Preview Mode.</p>}
+            </Field>
+
+            <div>
+              <ShortcodeTextField label="Organizer Name" required value={form.organizerName} onChange={(v) => set({ organizerName: v })} placeholder="Organizer Name"
+                shortcuts={accountShortcuts} error={errors.organizerName} />
+              <p className="mt-1.5 text-xs text-muted-foreground">Shortcodes are filled in for each account{firstAccount && form.organizerName.includes('[') ? <> — e.g. “<span className="font-medium text-foreground">{fillShortcodes(form.organizerName, firstAccount)}</span>”</> : '.'}</p>
+            </div>
+
+            <SettingsCard icon={Bell} title="Reminders" help="Remind the client until the organizer is submitted" checked={form.reminder} onChange={(v) => set({ reminder: v })}>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <Field label="Days until next reminder" htmlFor="co-days">
+                  <Input id="co-days" type="number" min="1" aria-invalid={!!errors.reminders} value={form.days} onChange={(e) => set({ days: e.target.value, reminders: undefined })} />
+                </Field>
+                <Field label="No Of reminders" htmlFor="co-count">
+                  <Input id="co-count" type="number" min="1" aria-invalid={!!errors.reminders} value={form.count} onChange={(e) => set({ count: e.target.value, reminders: undefined })} />
+                </Field>
+                {errors.reminders && <p role="alert" className="text-xs text-danger-700 sm:col-span-2">{errors.reminders}</p>}
+              </div>
+            </SettingsCard>
+          </div>
+        </DrawerLayout>
       </Drawer>
 
       {preview && template && (

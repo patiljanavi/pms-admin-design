@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
-import { FiDownload, FiEdit2, FiTrash2, FiSearch } from 'react-icons/fi';
+import { Download, Flag, Palette, Pencil, Plus, SearchX, Text, Trash2, X } from 'lucide-react';
 
 import Pagination, { usePagination } from '../../../components/Pagination';
-import { Modal, cx } from '../../../components/ui';
+import { Modal } from '../../../components/ui';
 import {
   BulkBar,
+  HeaderCheckbox,
   SelectCheckbox,
   SelectedOnlyFilter,
   barButton,
@@ -12,6 +13,14 @@ import {
   downloadCsv,
   useSelection,
 } from '../../../components/TableSelection';
+import FacetFilter from '../../../components/FacetFilter';
+import RowActionsMenu from '../../../components/RowActionsMenu';
+import { colorName } from '../../../components/TagChip';
+import { Button } from '../../../components/ui/button';
+import { toast } from '../../../components/ui/sonner';
+import { SimpleTooltip } from '../../../components/ui/tooltip';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { DataCard, EmptyState, SearchInput, StatCard } from '../../../components/page';
 import { useData } from '../../../context/DataContext';
 import ClientFacingDrawer from './ClientFacingStatusDrawer';
 
@@ -24,6 +33,31 @@ const fmtDate = (date) =>
       })
     : '—';
 
+const DEFAULT_COLOR = '#9CA3AF';
+
+/**
+ * Status pill tinted from the job's colour. color-mix keeps it readable on light and dark
+ * surfaces: a soft tint background, a darker/lighter text mixed towards the foreground.
+ */
+function StatusPill({ color, children, className = '' }) {
+  const hex = color || DEFAULT_COLOR;
+  return (
+    <span
+      className={`inline-flex max-w-full items-center gap-1.5 rounded-full border px-2.5 py-0.5 text-sm font-medium ${className}`}
+      style={{
+        backgroundColor: `color-mix(in srgb, ${hex} 14%, transparent)`,
+        borderColor: `color-mix(in srgb, ${hex} 32%, transparent)`,
+        color: `color-mix(in srgb, ${hex} 62%, hsl(var(--foreground)))`,
+      }}
+    >
+      <span className="size-2 flex-none rounded-full" style={{ backgroundColor: hex }} aria-hidden="true" />
+      <span className="truncate">{children}</span>
+    </span>
+  );
+}
+
+const notify = (message) => (/delet/i.test(message) ? toast(message) : toast.success(message));
+
 export default function ClientFacingTemplates() {
   const { clientFacingJobs, deleteClientFacingJobs } = useData();
 
@@ -31,15 +65,9 @@ export default function ClientFacingTemplates() {
   const [colors, setColors] = useState([]);
   const [drawer, setDrawer] = useState(null);
   const [confirm, setConfirm] = useState(null);
-  const [toast, setToast] = useState('');
   const [selectedOnly, setSelectedOnly] = useState(false);
 
   const selection = useSelection();
-
-  const notify = (message) => {
-    setToast(message);
-    setTimeout(() => setToast(''), 2600);
-  };
 
   useEffect(() => {
     if (selection.count === 0) {
@@ -57,6 +85,26 @@ export default function ClientFacingTemplates() {
       ),
     ],
     [clientFacingJobs]
+  );
+
+  const colorFacets = useMemo(
+    () =>
+      colorsInUse.map((hex) => {
+        const name = colorName(hex);
+        const label = name === 'Custom' ? hex : name;
+        return {
+          value: hex,
+          label,
+          count: clientFacingJobs.filter((job) => job.color?.toUpperCase() === hex).length,
+          render: () => (
+            <span className="flex items-center gap-2">
+              <span className="size-3 rounded-full ring-1 ring-inset ring-foreground/10" style={{ backgroundColor: hex }} aria-hidden="true" />
+              {label}
+            </span>
+          ),
+        };
+      }),
+    [colorsInUse, clientFacingJobs]
   );
 
   // Search, color filter, selected-only filter, sorted by name
@@ -98,16 +146,6 @@ export default function ClientFacingTemplates() {
     setPage(1);
   };
 
-  const toggleColor = (hex) => {
-    setColors((current) =>
-      current.includes(hex)
-        ? current.filter((color) => color !== hex)
-        : [...current, hex]
-    );
-
-    setPage(1);
-  };
-
   // Delete selected jobs
   const doDelete = () => {
     if (!confirm?.length) return;
@@ -125,92 +163,166 @@ export default function ClientFacingTemplates() {
     );
   };
 
+  const withDescription = clientFacingJobs.filter((job) => job.description?.trim()).length;
+
   return (
     <div className="flex flex-col gap-6">
       {/* Header */}
-      <header className="flex flex-wrap items-end justify-between gap-4">
+      <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <div className="text-sm text-muted">Templates / Client Facing</div>
-
-          <h1 className="mt-1 text-3xl font-bold">Client Facing Templates</h1>
-
-          <p className="mt-1 text-muted">
+          <h2 className="text-lg font-semibold tracking-tight">Client Facing Templates</h2>
+          <p className="text-sm text-muted-foreground">
             Templates for client-facing communications.
           </p>
         </div>
 
-        <button
-          className="btn-primary"
-          onClick={() => setDrawer({ clientFacingJob: null })}
-        >
-          + New Client Facing Template
-        </button>
-      </header>
+        <Button onClick={() => setDrawer({ clientFacingJob: null })}>
+          <Plus />
+          New Client Facing Template
+        </Button>
+      </div>
 
       {/* Summary */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="card p-4 sm:p-5">
-          <div className="text-sm text-muted">Total templates</div>
-          <div className="mt-1.5 text-2xl font-bold">
-            {clientFacingJobs.length}
-          </div>
-        </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-3 lg:gap-4">
+        <StatCard label="Total templates" value={clientFacingJobs.length} icon={Flag} />
+        <StatCard label="Colors in use" value={colorsInUse.length} icon={Palette} hint="Filter by color below" />
+        <StatCard label="With description" value={withDescription} icon={Text}
+          hint={`${Math.round((withDescription / Math.max(clientFacingJobs.length, 1)) * 100)}% of templates`} className="col-span-2 lg:col-span-1" />
       </div>
 
-      {/* Search and color filters */}
-      <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
-        <label className="flex min-h-[42px] flex-[1_1_220px] items-center gap-2 rounded border border-line-strong px-3 focus-within:border-brand-600">
-          <FiSearch size={18} className="text-muted" aria-hidden="true" />
-
-          <span className="sr-only">Search client-facing jobs</span>
-
-          <input
-            value={q}
-            onChange={(event) => {
-              setQ(event.target.value);
-              setPage(1);
-            }}
-            placeholder="Search client-facing jobs"
-            className="min-w-0 flex-1 bg-transparent outline-none"
-          />
-        </label>
-
-        <div
-          className="flex flex-wrap items-center gap-2"
-          role="group"
-          aria-label="Filter by color"
-        >
-          <span className="text-sm text-muted">Color</span>
-
-          {colorsInUse.map((hex) => {
-            const active = colors.includes(hex);
-
-            return (
-              <button
-                key={hex}
-                type="button"
-                aria-pressed={active}
-                aria-label={`Filter by color ${hex}`}
-                title={hex}
-                onClick={() => toggleColor(hex)}
-                className={cx(
-                  'h-7 w-7 rounded-full',
-                  active
-                    ? 'ring-2 ring-ink ring-offset-2'
-                    : 'ring-1 ring-black/10 hover:scale-110'
-                )}
-                style={{ backgroundColor: hex }}
+      <DataCard
+        toolbar={
+          <>
+            <SearchInput
+              value={q}
+              onChange={(value) => {
+                setQ(value);
+                setPage(1);
+              }}
+              label="Search client-facing jobs"
+              placeholder="Search client-facing jobs"
+              className="h-8 w-full sm:w-72"
+            />
+            {colorFacets.length > 0 && (
+              <FacetFilter
+                title="Color"
+                icon={Palette}
+                options={colorFacets}
+                value={colors}
+                onChange={(value) => {
+                  setColors(value);
+                  setPage(1);
+                }}
               />
-            );
-          })}
-        </div>
+            )}
+            {filtersOn && (
+              <Button variant="ghost" size="sm" onClick={reset} className="text-muted-foreground">
+                Clear filters
+                <X />
+              </Button>
+            )}
+            <span className="ml-auto hidden text-sm text-muted-foreground md:inline">
+              {filtered.length} of {clientFacingJobs.length}
+            </span>
+          </>
+        }
+        footer={filtered.length > 0 && <Pagination {...paging} label="client-facing jobs" />}
+      >
+        <Table className="min-w-[720px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10">
+                <HeaderCheckbox selection={selection} pageIds={rows.map((job) => job.value)} />
+              </TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Description</TableHead>
+              <TableHead>Created</TableHead>
+              <TableHead className="w-20"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((job) => {
+              const checked = selection.has(job.value);
 
-        {filtersOn && (
-          <button onClick={reset} className="btn-link px-2">
-            Clear filters
-          </button>
-        )}
-      </div>
+              return (
+                <TableRow key={job.value} data-state={checked ? 'selected' : undefined} className="group">
+                  <TableCell>
+                    <SelectCheckbox
+                      label={`Select ${job.label}`}
+                      checked={checked}
+                      onChange={() => selection.toggle(job.value)}
+                    />
+                  </TableCell>
+                  <TableCell className="max-w-[300px]">
+                    <button
+                      type="button"
+                      onClick={() => setDrawer({ clientFacingJob: job })}
+                      className="max-w-full rounded-full text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
+                      aria-label={`${job.label} (color ${job.color || 'default'}) — edit`}
+                    >
+                      <StatusPill color={job.color} className="transition-shadow hover:shadow-raised">{job.label}</StatusPill>
+                    </button>
+                  </TableCell>
+                  <TableCell className="max-w-[420px]">
+                    {job.description ? (
+                      <span className="line-clamp-1 text-sm text-muted-foreground">{job.description}</span>
+                    ) : (
+                      <span className="text-muted-foreground/60">—</span>
+                    )}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{fmtDate(job.createdAt)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center justify-end gap-0.5">
+                      <SimpleTooltip label="Edit job">
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          onClick={() => setDrawer({ clientFacingJob: job })}
+                          aria-label={`Edit ${job.label}`}
+                          className="text-muted-foreground opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100"
+                        >
+                          <Pencil />
+                        </Button>
+                      </SimpleTooltip>
+                      <RowActionsMenu
+                        label={job.label}
+                        onEdit={() => setDrawer({ clientFacingJob: job })}
+                        onDelete={() => setConfirm([job])}
+                      />
+                    </div>
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {filtered.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={5}>
+                  {clientFacingJobs.length ? (
+                    <EmptyState
+                      icon={SearchX}
+                      title="No jobs match these filters."
+                      description="Try a different search or remove the color filter."
+                      action={<Button variant="outline" onClick={reset}>Clear filters</Button>}
+                    />
+                  ) : (
+                    <EmptyState
+                      icon={Flag}
+                      title="No client-facing jobs yet."
+                      description="Create one to get started."
+                      action={
+                        <Button onClick={() => setDrawer({ clientFacingJob: null })}>
+                          <Plus />
+                          New Client Facing Job
+                        </Button>
+                      }
+                    />
+                  )}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </DataCard>
 
       {/* Bulk actions */}
       <BulkBar
@@ -235,6 +347,7 @@ export default function ClientFacingTemplates() {
         actions={
           <>
             <button
+              type="button"
               className={barButton}
               disabled={selectedJobs.length === 0}
               onClick={() => {
@@ -251,124 +364,22 @@ export default function ClientFacingTemplates() {
                 notify(`Exported ${selectedJobs.length} jobs`);
               }}
             >
-              <FiDownload aria-hidden="true" />
+              <Download aria-hidden="true" />
               Export
             </button>
 
             <button
+              type="button"
               className={barDanger}
               disabled={selectedJobs.length === 0}
               onClick={() => setConfirm(selectedJobs)}
             >
-              <FiTrash2 aria-hidden="true" />
+              <Trash2 aria-hidden="true" />
               Delete
             </button>
           </>
         }
       />
-
-      {/* Client-facing job cards */}
-      <div className="p-4 sm:p-5">
-        {rows.length > 0 ? (
-          <div className="grid grid-cols-1 gap-4">
-            {rows.map((job) => {
-              const checked = selection.has(job.value);
-
-              return (
-                <article
-                  key={job.value}
-                  className={cx(
-                    'group flex min-w-0 flex-col rounded-xl border p-4 transition-colors',
-                    checked
-                      ? 'border-brand-600 bg-brand-50/50'
-                      : 'border-line hover:border-line-strong hover:bg-subtle/40'
-                  )}
-                >
-                  {/* Card header */}
-                  <div className="flex items-start gap-3">
-                    <div className="pt-1">
-                      <SelectCheckbox
-                        label={`Select ${job.label}`}
-                        checked={checked}
-                        onChange={() => selection.toggle(job.value)}
-                      />
-                    </div>
-
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-start gap-2.5">
-                        <span
-                          className="mt-1.5 h-3 w-3 flex-none rounded-full ring-1 ring-black/10"
-                          style={{ backgroundColor: job.color || '#9CA3AF' }}
-                          aria-label={`Color ${job.color || 'default'}`}
-                          title={job.color || 'Default color'}
-                        />
-
-                        <h3 className="min-w-0 break-words font-semibold text-ink">
-                          {job.label}
-                        </h3>
-                      </div>
-
-                      <p className="line-clamp-1 text-sm text-muted-foreground">
-                        {job.description || '-'}
-                      </p>
-                    </div>
-
-                    {/* Actions */}
-                    <div className="flex flex-none items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => setDrawer({ clientFacingJob: job })}
-                        aria-label={`Edit ${job.label}`}
-                        title="Edit job"
-                        className="flex h-9 w-9 items-center justify-center rounded-md text-muted hover:bg-subtle hover:text-ink"
-                      >
-                        <FiEdit2 aria-hidden="true" />
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => setConfirm([job])}
-                        aria-label={`Delete ${job.label}`}
-                        title="Delete job"
-                        className="flex h-9 w-9 items-center justify-center rounded-md text-danger-700 hover:bg-danger-50"
-                      >
-                        <FiTrash2 aria-hidden="true" />
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Card footer */}
-                  <div className="mt-4 flex items-center justify-end border-t border-line-soft pt-3 text-xs text-muted">
-                    <span>{fmtDate(job.createdAt)}</span>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center gap-3 p-8 text-center text-muted sm:p-12">
-            {clientFacingJobs.length
-              ? 'No jobs match these filters.'
-              : 'No client-facing jobs yet. Create one to get started.'}
-
-            {clientFacingJobs.length > 0 ? (
-              <button onClick={reset} className="btn-secondary">
-                Clear filters
-              </button>
-            ) : (
-              <button
-                onClick={() => setDrawer({ clientFacingJob: null })}
-                className="btn-primary"
-              >
-                + New Client Facing Job
-              </button>
-            )}
-          </div>
-        )}
-      </div>
-
-      {/* Pagination */}
-      <Pagination {...paging} label="client-facing jobs" />
 
       {/* Create/Edit drawer */}
       {drawer && (
@@ -392,43 +403,33 @@ export default function ClientFacingTemplates() {
               ? `Delete “${confirm[0].label}”?`
               : `Delete ${confirm.length} templates?`
           }
+          description="This action cannot be undone."
           onClose={() => setConfirm(null)}
           footer={
             <>
-              <button
-                className="btn-secondary"
-                onClick={() => setConfirm(null)}
-              >
+              <Button variant="outline" onClick={() => setConfirm(null)}>
                 Cancel
-              </button>
+              </Button>
 
-              <button
-                className="btn bg-danger-700 text-white hover:bg-[#831E15]"
-                onClick={doDelete}
-              >
+              <Button variant="destructive" onClick={doDelete}>
+                <Trash2 />
                 Delete {confirm.length === 1 ? 'template' : 'templates'}
-              </button>
+              </Button>
             </>
           }
         >
-          <p className="text-muted">
+          <p className="text-sm text-muted-foreground">
             Are you sure you want to delete{' '}
             {confirm.length === 1
               ? `“${confirm[0].label}”`
               : `${confirm.length} client-facing templates`}
-            ? This action cannot be undone.
+            ?
           </p>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {confirm.slice(0, 12).map((job) => <StatusPill key={job.value} color={job.color}>{job.label}</StatusPill>)}
+            {confirm.length > 12 && <span className="self-center text-xs text-muted-foreground">+{confirm.length - 12} more</span>}
+          </div>
         </Modal>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div
-          role="status"
-          className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white"
-        >
-          {toast}
-        </div>
       )}
     </div>
   );

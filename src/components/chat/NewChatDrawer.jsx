@@ -1,15 +1,34 @@
 import { useState } from 'react';
-import { FiMessageSquare, FiPlus, FiTrash2, FiX } from 'react-icons/fi';
+import { Bell, ListChecks, MessageSquarePlus, Plus, Trash2 } from 'lucide-react';
 import MultiSelect from '../MultiSelect';
 import ShortcodeTextField from '../ShortcodeTextField';
 import TextEditor from '../TextEditor';
-import { Avatar, Drawer, Toggle, cx, initials } from '../ui';
+import { Avatar, CloseButton, Drawer, Toggle, initials } from '../ui';
+import { Button } from '../ui/button';
+import { Input } from '../ui/input';
+import { Label } from '../ui/label';
 import { useData } from '../../context/DataContext';
 import { contactShortcuts } from '../../data/shortcodes';
 import { newTask } from '../../data/accountChats';
+import { cn } from 'lib/utils';
 
-/** Card used for each section of the drawer. */
-const Block = ({ children }) => <div className="rounded-lg border border-line bg-surface p-5 shadow-card">{children}</div>;
+/** One section of the drawer form: heading on top, fields below. */
+function Section({ title, description, action, children, className }) {
+  return (
+    <section className={cn('flex flex-col gap-3 py-5 first:pt-0 last:pb-0', className)}>
+      {(title || action) && (
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            {title && <h3 className="text-sm font-semibold">{title}</h3>}
+            {description && <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>}
+          </div>
+          {action}
+        </div>
+      )}
+      {children}
+    </section>
+  );
+}
 
 /**
  * New Chat drawer. Fields: Account * (one or more) · Template · Subject * · Description · Reminders · Client tasks.
@@ -49,81 +68,101 @@ export default function NewChatDrawer({ defaultAccountIds = [], onCreate, onClos
 
   return (
     <Drawer onClose={onClose} label="New Chat" width="max-w-[650px]">
-      <div className="flex items-center gap-3 border-b border-line bg-subtle/60 px-6 py-5">
-        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand-600 text-white" aria-hidden="true"><FiMessageSquare /></span>
-        <div className="flex-1"><h2 className="text-lg font-semibold">New Chat</h2><p className="text-sm text-muted">Create a new client conversation and tasks</p></div>
-        <button onClick={onClose} aria-label="Close" className="flex h-9 w-9 items-center justify-center rounded-lg text-muted hover:bg-subtle hover:text-ink"><FiX /></button>
-      </div>
-
-      <div className="flex flex-1 flex-col gap-5 overflow-y-auto px-6 py-6">
-        <Block>
-          <MultiSelect label="Account *" placeholder="Select accounts" options={accountOptions} value={form.accountIds} onChange={(v) => set({ accountIds: v })} error={errors.accountIds}
-            renderOption={(o) => <span className="flex flex-1 items-center gap-2.5"><Avatar text={initials(o.label)} size="sm" /><span><span className="block font-semibold">{o.label}</span><span className="block text-xs text-muted">{o.meta}</span></span></span>} />
-          {form.accountIds.length > 1 && <p className="mt-1.5 text-xs text-muted">A separate chat is created for each account.</p>}
-        </Block>
-
-        <Block>
-          <label className="field-label">Template
-            <select className="input" value={form.templateId} onChange={(e) => handleTemplateChange(e.target.value)}>
-              <option value="">Select a template</option>
-              {chatTemplates.map((t) => <option key={t.id} value={t.id}>{t.templateName}</option>)}
-            </select>
-            <span className="text-xs font-normal text-muted">Fills in the subject, description, reminders and tasks.</span>
-          </label>
-        </Block>
-
-        <Block>
-          <ShortcodeTextField label="Subject" required value={form.subject} onChange={(v) => set({ subject: v })} placeholder="e.g. A few receipts are missing, [FIRST_NAME]"
-            shortcuts={contactShortcuts} error={errors.subject} />
-          <p className="mt-1.5 text-xs text-muted">Shortcodes are filled in for each account when the chat is created.</p>
-        </Block>
-
-        <Block>
-          <span className="mb-1.5 block text-sm font-semibold">Description</span>
-          <TextEditor key={form.templateId || 'blank'} ariaLabel="Chat description" value={form.description} onChange={(html) => set({ description: html })}
-            shortcuts={contactShortcuts} placeholder="The first message the client sees…" minHeight={150} />
-        </Block>
-
-        <Block>
-          <div className="flex items-center justify-between gap-4">
-            <span className="font-semibold">Send reminders to client</span>
-            <Toggle label="Send reminders to client" checked={form.sendReminders} onChange={(v) => set({ sendReminders: v })} />
+      <div className="flex min-h-0 flex-1 flex-col">
+        {/* Header */}
+        <header className="flex flex-none items-start gap-3 border-b px-6 py-4">
+          <span className="mt-0.5 inline-flex size-9 flex-none items-center justify-center rounded-lg border bg-subtle text-muted-foreground" aria-hidden="true"><MessageSquarePlus className="size-4" /></span>
+          <div className="min-w-0 flex-1">
+            <h2 className="text-lg font-semibold tracking-tight">New chat</h2>
+            <p className="text-sm text-muted-foreground">Start a client conversation, with optional reminders and tasks.</p>
           </div>
-          {form.sendReminders && (
-            <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="field-label">Days until next reminder
-                <input type="number" min="1" className={cx('input', errors.reminders && 'border-danger-700')} value={form.days} onChange={(e) => set({ days: e.target.value, reminders: undefined })} />
-              </label>
-              <label className="field-label">Number of reminders
-                <input type="number" min="1" className={cx('input', errors.reminders && 'border-danger-700')} value={form.count} onChange={(e) => set({ count: e.target.value, reminders: undefined })} />
-              </label>
-              {errors.reminders && <p role="alert" className="text-sm text-danger-700 sm:col-span-2">{errors.reminders}</p>}
+          <CloseButton onClick={onClose} className="-mr-2" />
+        </header>
+
+        {/* Body */}
+        <div className="min-h-0 flex-1 divide-y overflow-y-auto px-6 py-5">
+          <Section>
+            <MultiSelect label="Account *" placeholder="Select accounts" options={accountOptions} value={form.accountIds} onChange={(v) => set({ accountIds: v })} error={errors.accountIds}
+              renderOption={(o) => <span className="flex flex-1 items-center gap-2.5"><Avatar text={initials(o.label)} size="sm" /><span><span className="block font-medium">{o.label}</span><span className="block text-xs text-muted-foreground">{o.meta}</span></span></span>} />
+            {form.accountIds.length > 1 && <p className="-mt-1 text-xs text-muted-foreground">A separate chat is created for each account.</p>}
+
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="new-chat-template">Template</Label>
+              <select id="new-chat-template" className="input" value={form.templateId} onChange={(e) => handleTemplateChange(e.target.value)}>
+                <option value="">Select a template</option>
+                {chatTemplates.map((t) => <option key={t.id} value={t.id}>{t.templateName}</option>)}
+              </select>
+              <span className="text-xs text-muted-foreground">Fills in the subject, description, reminders and tasks.</span>
             </div>
-          )}
-        </Block>
+          </Section>
 
-        <Block>
-          <div className="mb-3 flex items-center justify-between">
-            <span className="font-semibold">Client Tasks</span>
-            <button type="button" className="btn-secondary min-h-[36px] text-sm" onClick={() => set({ tasks: [...form.tasks, newTask()] })}><FiPlus aria-hidden="true" /> Add Task</button>
-          </div>
-          <ul className="flex flex-col gap-2">
-            {form.tasks.map((t, i) => (
-              <li key={t.id} className="flex items-center gap-2 rounded-lg border border-line bg-subtle/40 p-2.5">
-                <input type="checkbox" disabled aria-label={`Task ${i + 1} (client ticks it off)`} className="h-[18px] w-[18px] flex-none" />
-                <input className="min-h-[38px] min-w-0 flex-1 rounded border border-line bg-surface px-2.5 text-sm focus:border-brand-600 focus:outline-none" value={t.text}
-                  placeholder="Enter task description" aria-label={`Task ${i + 1}`} onChange={(e) => set({ tasks: form.tasks.map((x) => (x.id === t.id ? { ...x, text: e.target.value } : x)) })} />
-                <button type="button" onClick={() => set({ tasks: form.tasks.filter((x) => x.id !== t.id) })} aria-label={`Remove task ${i + 1}`} className="flex h-8 w-8 items-center justify-center rounded text-muted hover:bg-danger-50 hover:text-danger-700"><FiTrash2 aria-hidden="true" /></button>
-              </li>
-            ))}
-          </ul>
-          {!form.tasks.length && <p className="rounded-lg border border-dashed border-line-strong px-4 py-6 text-center text-sm text-muted">No tasks added yet. Click “Add Task” to create one.</p>}
-        </Block>
-      </div>
+          <Section title="Message">
+            <div>
+              <ShortcodeTextField label="Subject" required value={form.subject} onChange={(v) => set({ subject: v })} placeholder="e.g. A few receipts are missing, [FIRST_NAME]"
+                shortcuts={contactShortcuts} error={errors.subject} />
+              <p className="mt-1.5 text-xs text-muted-foreground">Shortcodes are filled in for each account when the chat is created.</p>
+            </div>
+            <div>
+              <span className="mb-1.5 block text-sm font-medium">Description</span>
+              <TextEditor key={form.templateId || 'blank'} ariaLabel="Chat description" value={form.description} onChange={(html) => set({ description: html })}
+                shortcuts={contactShortcuts} placeholder="The first message the client sees…" minHeight={150} />
+            </div>
+          </Section>
 
-      <div className="sticky bottom-0 flex justify-end gap-3 border-t border-line bg-subtle px-6 py-4">
-        <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
-        <button type="button" className="btn-primary" onClick={saveChat}><FiPlus aria-hidden="true" /> Create Chat</button>
+          <Section>
+            <div className="flex items-start justify-between gap-4">
+              <div className="flex items-start gap-3">
+                <Bell className="mt-0.5 size-4 flex-none text-muted-foreground" aria-hidden="true" />
+                <div>
+                  <div className="text-sm font-semibold">Send reminders to client</div>
+                  <p className="text-xs text-muted-foreground">Nudge the client by email until they reply.</p>
+                </div>
+              </div>
+              <Toggle label="Send reminders to client" checked={form.sendReminders} onChange={(v) => set({ sendReminders: v })} />
+            </div>
+            {form.sendReminders && (
+              <div className="grid grid-cols-1 gap-4 rounded-lg border bg-subtle p-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="new-chat-days">Days until next reminder</Label>
+                  <Input id="new-chat-days" type="number" min="1" aria-invalid={!!errors.reminders} value={form.days} onChange={(e) => set({ days: e.target.value, reminders: undefined })} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="new-chat-count">Number of reminders</Label>
+                  <Input id="new-chat-count" type="number" min="1" aria-invalid={!!errors.reminders} value={form.count} onChange={(e) => set({ count: e.target.value, reminders: undefined })} />
+                </div>
+                {errors.reminders && <p role="alert" className="text-xs text-danger-700 sm:col-span-2">{errors.reminders}</p>}
+              </div>
+            )}
+          </Section>
+
+          <Section title="Client tasks" description="A checklist the client ticks off inside the chat."
+            action={<Button type="button" variant="outline" size="sm" onClick={() => set({ tasks: [...form.tasks, newTask()] })}><Plus />Add task</Button>}>
+            {form.tasks.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {form.tasks.map((t, i) => (
+                  <li key={t.id} className="group flex items-center gap-2.5">
+                    <span className="size-4 flex-none rounded-[4px] border border-line-strong bg-card" role="img" aria-label={`Task ${i + 1} (client ticks it off)`} />
+                    <Input className="h-8 flex-1" value={t.text} placeholder="Enter task description" aria-label={`Task ${i + 1}`}
+                      onChange={(e) => set({ tasks: form.tasks.map((x) => (x.id === t.id ? { ...x, text: e.target.value } : x)) })} />
+                    <Button type="button" variant="ghost" size="icon-sm" onClick={() => set({ tasks: form.tasks.filter((x) => x.id !== t.id) })} aria-label={`Remove task ${i + 1}`}
+                      className="text-muted-foreground hover:bg-danger-50 hover:text-danger-700"><Trash2 /></Button>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <div className="flex flex-col items-center gap-1.5 rounded-lg border border-dashed px-4 py-6 text-center">
+                <ListChecks className="size-5 text-muted-foreground" aria-hidden="true" />
+                <p className="text-sm text-muted-foreground">No tasks added yet. Click “Add task” to create one.</p>
+              </div>
+            )}
+          </Section>
+        </div>
+
+        {/* Footer */}
+        <footer className="flex flex-none items-center justify-end gap-2 border-t bg-subtle px-6 py-3.5">
+          <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+          <Button type="button" onClick={saveChat}><Plus />Create chat</Button>
+        </footer>
       </div>
     </Drawer>
   );

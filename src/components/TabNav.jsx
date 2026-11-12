@@ -46,7 +46,7 @@
 //             className="min-h-[48px] w-full appearance-none rounded-md border border-line-strong bg-surface pl-10 pr-10 font-semibold text-ink shadow-card focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30">
 //             {tabs.map((t) => <option key={t.to} value={t.to}>{t.label}</option>)}
 //           </select>
-//           <FiChevronDown size={18} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
+//           <FiChevronDown size={18} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
 //         </div>
 //       </div>
 
@@ -57,7 +57,7 @@
 //             <>
 //               <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-16 bg-gradient-to-r from-surface to-transparent" aria-hidden="true" />
 //               <button type="button" onClick={() => scrollBy(-1)} aria-label="Scroll tabs left"
-//                 className="absolute left-1 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-card hover:text-ink"><FiChevronLeft size={18} /></button>
+//                 className="absolute left-1 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted-foreground shadow-card hover:text-ink"><FiChevronLeft size={18} /></button>
 //             </>
 //           )}
 //           <nav ref={scroller} onScroll={updateArrows} aria-label={navLabel}
@@ -67,9 +67,9 @@
 //                 className={() => [
 //                   'group relative flex min-h-[52px] flex-none items-center gap-2 whitespace-nowrap rounded-t-md px-4 text-[15px] font-semibold transition-colors',
 //                   'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-600',
-//                   to === current.to ? 'text-brand-600' : 'text-muted hover:bg-subtle hover:text-ink',
+//                   to === current.to ? 'text-brand-600' : 'text-muted-foreground hover:bg-subtle hover:text-ink',
 //                 ].join(' ')}>
-//                 {Icon && <Icon size={17} aria-hidden="true" className={to === current.to ? 'text-brand-600' : 'text-muted group-hover:text-ink'} />}
+//                 {Icon && <Icon size={17} aria-hidden="true" className={to === current.to ? 'text-brand-600' : 'text-muted-foreground group-hover:text-ink'} />}
 //                 {label}
 //                 <span aria-hidden="true" className={`absolute inset-x-3 -bottom-px h-[3px] rounded-t-full transition-colors ${to === current.to ? 'bg-brand-600' : 'bg-transparent group-hover:bg-line-strong'}`} />
 //               </NavLink>
@@ -79,7 +79,7 @@
 //             <>
 //               <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-16 bg-gradient-to-l from-surface to-transparent" aria-hidden="true" />
 //               <button type="button" onClick={() => scrollBy(1)} aria-label="Scroll tabs right"
-//                 className="absolute right-1 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-card hover:text-ink"><FiChevronRight size={18} /></button>
+//                 className="absolute right-1 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted-foreground shadow-card hover:text-ink"><FiChevronRight size={18} /></button>
 //             </>
 //           )}
 //         </div>
@@ -91,34 +91,41 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
-import { FiChevronDown, FiChevronLeft, FiChevronRight } from 'react-icons/fi';
-import { cx } from './ui';
+import { ChevronDown, ChevronLeft, ChevronRight } from 'lucide-react';
+import { cn } from 'lib/utils';
 
 /* ─────────────────────────────────────────────────────────────
-   One tab style for the whole app:
-   compact item · icon · optional count badge · 3px underline on the active tab.
-   TabNav = routed tabs (Firm Templates, Account dashboard).
+   One tab style for the whole app (Linear / Attio style line tabs):
+   compact item · icon · optional count pill · 2px underline on the active tab.
+   TabNav  = routed tabs (Firm Templates, Account dashboard).
    SubTabs = in-page child tabs (e.g. account Workflow → Pipelines / Jobs).
    ───────────────────────────────────────────────────────────── */
 
 /** Classes for one tab. */
-export const tabItemClass = (active) => cx(
-  'relative flex min-h-[44px] flex-none items-center gap-2 whitespace-nowrap px-4 text-sm font-semibold transition-colors',
-  'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-600',
-  active ? 'text-brand-600' : 'text-muted hover:text-ink',
+export const tabItemClass = (active) => cn(
+  'group relative flex h-10 flex-none items-center gap-2 whitespace-nowrap px-3 text-sm font-medium outline-none transition-colors',
+  // soft hover "pill" behind the label, like Linear
+  'before:absolute before:inset-x-0.5 before:inset-y-1.5 before:rounded-md before:transition-colors hover:before:bg-accent',
+  'focus-visible:before:ring-2 focus-visible:before:ring-ring/50',
+  active ? 'text-foreground' : 'text-muted-foreground hover:text-foreground',
 );
 
 /** Icon + label + count + underline: the inside of every tab. */
 function TabInner({ icon: Icon, label, count, active }) {
   return (
     <>
-      {Icon && <Icon size={16} aria-hidden="true" />}
-      {label}
-      {count != null && <span className={cx('rounded-full px-2 text-xs', active ? 'bg-brand-100' : 'bg-subtle')}>{count}</span>}
-      {active && <span className="absolute inset-x-2 -bottom-px h-[3px] rounded-t-full bg-brand-600" aria-hidden="true" />}
+      {Icon && <Icon aria-hidden="true" className={cn('relative size-4 flex-none transition-colors', active ? 'text-foreground' : 'text-muted-foreground group-hover:text-foreground')} />}
+      <span className="relative">{label}</span>
+      {count != null && (
+        <span className={cn('relative inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1.5 text-[11px] font-medium tabular-nums',
+          active ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>{count}</span>
+      )}
+      <span aria-hidden="true" className={cn('absolute inset-x-2 bottom-0 h-0.5 rounded-full transition-colors', active ? 'bg-primary' : 'bg-transparent')} />
     </>
   );
 }
+
+const arrowBtn = 'absolute top-1/2 z-20 inline-flex size-7 -translate-y-1/2 items-center justify-center rounded-md border bg-card text-muted-foreground shadow-xs transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50';
 
 /** Scroll arrows that appear when the tabs don't fit. */
 function useOverflowArrows(dep) {
@@ -147,15 +154,13 @@ function useOverflowArrows(dep) {
       {canLeft && (
         <>
           <div className="pointer-events-none absolute inset-y-0 left-0 z-10 w-14 bg-gradient-to-r from-canvas to-transparent" aria-hidden="true" />
-          <button type="button" onClick={() => scrollBy(-1)} aria-label="Scroll tabs left"
-            className="absolute left-0 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-card hover:text-ink"><FiChevronLeft size={18} /></button>
+          <button type="button" onClick={() => scrollBy(-1)} aria-label="Scroll tabs left" className={cn(arrowBtn, 'left-0')}><ChevronLeft className="size-4" /></button>
         </>
       )}
       {canRight && (
         <>
           <div className="pointer-events-none absolute inset-y-0 right-0 z-10 w-14 bg-gradient-to-l from-canvas to-transparent" aria-hidden="true" />
-          <button type="button" onClick={() => scrollBy(1)} aria-label="Scroll tabs right"
-            className="absolute right-0 top-1/2 z-20 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-line bg-surface text-muted shadow-card hover:text-ink"><FiChevronRight size={18} /></button>
+          <button type="button" onClick={() => scrollBy(1)} aria-label="Scroll tabs right" className={cn(arrowBtn, 'right-0')}><ChevronRight className="size-4" /></button>
         </>
       )}
     </>
@@ -179,23 +184,23 @@ export default function TabNav({ tabs, currentTo, navLabel, selectLabel, selectI
     <>
       {/* Phones: dropdown */}
       <div className="md:hidden">
-        <label htmlFor={selectId} className="mb-1.5 block text-sm font-semibold">{selectLabel}</label>
+        <label htmlFor={selectId} className="mb-1.5 block text-xs font-medium uppercase tracking-wide text-muted-foreground">{selectLabel}</label>
         <div className="relative">
-          {CurrentIcon && <CurrentIcon size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-brand-600" aria-hidden="true" />}
+          {CurrentIcon && <CurrentIcon className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />}
           <select id={selectId} value={current.to} onChange={(e) => navigate(e.target.value)}
-            className="min-h-[48px] w-full appearance-none rounded-md border border-line-strong bg-surface pl-10 pr-10 font-semibold text-ink shadow-card focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30">
+            className="h-10 w-full appearance-none rounded-md border border-input bg-card pl-9 pr-9 text-sm font-medium text-foreground shadow-xs transition-[box-shadow,border-color] focus-visible:border-ring focus-visible:outline-none focus-visible:ring-[3px] focus-visible:ring-ring/20">
             {tabs.map((t) => <option key={t.to} value={t.to}>{t.label}{t.count != null ? ` (${t.count})` : ''}</option>)}
           </select>
-          <FiChevronDown size={18} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-muted" aria-hidden="true" />
+          <ChevronDown className="pointer-events-none absolute right-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" aria-hidden="true" />
         </div>
       </div>
 
       {/* Tablets & desktop: tab row */}
-      <div className="relative hidden items-end gap-3 border-b border-line md:flex">
+      <div className="relative hidden items-center gap-3 border-b md:flex">
         <div className="relative min-w-0 flex-1">
           {arrows}
           <nav ref={scroller} onScroll={update} aria-label={navLabel}
-            className="flex overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            className="isolate flex overflow-x-auto scroll-smooth [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {tabs.map(({ to, label, icon, count }) => {
               const active = to === current.to;
               return (
@@ -206,7 +211,7 @@ export default function TabNav({ tabs, currentTo, navLabel, selectLabel, selectI
             })}
           </nav>
         </div>
-        {actions && <div className="mb-2 flex flex-none items-center gap-2">{actions}</div>}
+        {actions && <div className="flex flex-none items-center gap-2 pb-1">{actions}</div>}
       </div>
     </>
   );
@@ -228,11 +233,11 @@ export function SubTabs({ tabs, value, onChange, label, actions }) {
     requestAnimationFrame(() => scroller.current?.querySelector(`[data-key="${t.key}"]`)?.focus());
   };
   return (
-    <div className="relative flex flex-wrap items-end justify-between gap-3 border-b border-line">
+    <div className="relative flex flex-wrap items-center justify-between gap-3 border-b">
       <div className="relative min-w-0 flex-1">
         {arrows}
         <div ref={scroller} onScroll={update} role="tablist" aria-label={label} onKeyDown={onKeyDown}
-          className="flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          className="isolate flex overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {tabs.map(({ key, label: text, icon, count }) => {
             const active = key === value;
             return (
@@ -244,7 +249,7 @@ export function SubTabs({ tabs, value, onChange, label, actions }) {
           })}
         </div>
       </div>
-      {actions && <div className="mb-2 flex flex-none items-center gap-2">{actions}</div>}
+      {actions && <div className="flex flex-none items-center gap-2 pb-1">{actions}</div>}
     </div>
   );
 }

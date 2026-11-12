@@ -1,18 +1,40 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import { FiBell, FiCopy, FiDownload, FiLock, FiSearch, FiTrash2, FiUploadCloud, FiUserCheck, FiEye } from 'react-icons/fi';
+import {
+  Bell, CircleAlert, ClipboardList, CloudUpload, Copy, Download, Eye, ListChecks, Lock, Plus, SearchX, Trash2, UserCheck, Workflow, X,
+} from 'lucide-react';
 import RowActionsMenu from '../../../components/RowActionsMenu';
 import OrganizerPreview from '../../../components/organizer/OrganizerPreview';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import {
   BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection,
 } from '../../../components/TableSelection';
-import { Modal, cx } from '../../../components/ui';
+import { Modal } from '../../../components/ui';
+import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
+import { toast } from '../../../components/ui/sonner';
+import { SimpleTooltip } from '../../../components/ui/tooltip';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { DataCard, EmptyState, SearchInput, StatCard } from '../../../components/page';
 import { useData } from '../../../context/DataContext';
 import { questionCount } from '../../../data/organizerTemplates';
 
 const LIST_PATH = '/firmtemp/templates/organizers';
 const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+// Deletions get a neutral toast, everything else a success toast
+const notify = (m) => (/delet/i.test(m) ? toast(m) : toast.success(m));
+
+/** Settings icons shown in the table (tooltip on hover). */
+function SettingIcon({ icon: Icon, label, className }) {
+  return (
+    <SimpleTooltip label={label}>
+      <span role="img" aria-label={label} className={`inline-flex size-6 items-center justify-center rounded-md border bg-subtle text-muted-foreground [&_svg]:size-3.5 ${className || ''}`}>
+        <Icon aria-hidden="true" />
+      </span>
+    </SimpleTooltip>
+  );
+}
 
 /** Firm Templates → Organizers: table of organizer templates. New / Edit open OrganizerTemplateForm. */
 export default function OrganizerTemplates() {
@@ -33,8 +55,6 @@ export default function OrganizerTemplates() {
   const [q, setQ] = useState('');
   const [confirm, setConfirm] = useState(null);
   const [preview, setPreview] = useState(null);
-  const [toast, setToast] = useState('');
-  const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2600); };
   useEffect(() => {
     if (routeState?.toast) { notify(routeState.toast); navigate(pathname, { replace: true, state: null }); }
   }, [routeState]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -52,7 +72,13 @@ export default function OrganizerTemplates() {
   const { pageItems: rows, setPage } = paging;
   const selected = organizerTemplates.filter((t) => selection.has(t.id));
 
-  if (!duplicateOrganizerTemplates) return <div role="alert" className="card bg-danger-50 p-6 font-semibold text-danger-700">Organizer templates are not set up in DataContext.js</div>;
+  if (!duplicateOrganizerTemplates) {
+    return (
+      <div role="alert" className="flex items-center gap-2 rounded-xl border border-danger-200 bg-danger-50 p-5 font-medium text-danger-700">
+        <CircleAlert className="size-4" aria-hidden="true" />Organizer templates are not set up in DataContext.js
+      </div>
+    );
+  }
 
   const openNew = () => navigate(`${LIST_PATH}/new`);
   const openEdit = (t) => navigate(`${LIST_PATH}/${t.id}`);
@@ -69,118 +95,148 @@ export default function OrganizerTemplates() {
     notify(`Exported ${items.length} templates`);
   };
 
-  const stats = [
-    ['Total templates', organizerTemplates.length],
-    ['Questions', organizerTemplates.reduce((n, t) => n + questionCount(t), 0)],
-    ['With reminders', organizerTemplates.filter((t) => t.organizersettings.sendreminderstoclient).length],
-    ['Used in pipelines', organizerTemplates.filter((t) => usedIn.has(String(t.id))).length],
-  ];
+  const totalQuestions = organizerTemplates.reduce((n, t) => n + questionCount(t), 0);
+  const withReminders = organizerTemplates.filter((t) => t.organizersettings.sendreminderstoclient).length;
+  const inPipelines = organizerTemplates.filter((t) => usedIn.has(String(t.id))).length;
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-2xl font-bold">Organizer templates</h2>
-          <p className="text-muted">Questionnaires clients fill in, with conditional questions and sections.</p>
+          <h2 className="text-lg font-semibold tracking-tight">Organizer templates</h2>
+          <p className="text-sm text-muted-foreground">Questionnaires clients fill in, with conditional questions and sections.</p>
         </div>
-        <button className="btn-primary" onClick={openNew}>+ Create Template</button>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" onClick={() => exportCsv(filtered)} disabled={!filtered.length}><Download />Export</Button>
+          <Button onClick={openNew}><Plus />Create Template</Button>
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map(([label, n]) => (
-          <div key={label} className="card p-4 sm:p-5"><div className="text-sm text-muted">{label}</div><div className="mt-1.5 text-2xl font-bold">{n}</div></div>
-        ))}
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <StatCard label="Total templates" value={organizerTemplates.length} icon={ClipboardList} />
+        <StatCard label="Questions" value={totalQuestions} icon={ListChecks} hint={`${(totalQuestions / Math.max(organizerTemplates.length, 1)).toFixed(1)} per template`} />
+        <StatCard label="With reminders" value={withReminders} icon={Bell} hint={`${Math.round((withReminders / Math.max(organizerTemplates.length, 1)) * 100)}% of templates`} />
+        <StatCard label="Used in pipelines" value={inPipelines} icon={Workflow} hint="via Create Organizer automations" />
       </div>
 
-      <section className="card overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
-          <label className="flex min-h-[44px] flex-[1_1_260px] items-center gap-2 rounded border border-line-strong px-3 focus-within:border-brand-600">
-            <FiSearch size={18} className="text-muted" aria-hidden="true" /><span className="sr-only">Search organizer templates</span>
-            <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search template, organizer name, section" className="min-w-0 flex-1 bg-transparent outline-none" />
-          </label>
-          {q && <button onClick={() => { setQ(''); setPage(1); }} className="btn-link px-2">Clear</button>}
-        </div>
-
-        <BulkBar count={selection.count} total={filtered.length}
-          onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
-          filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-          actions={<>
-            <button className={barButton} onClick={() => { duplicateOrganizerTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><FiCopy aria-hidden="true" /> Duplicate</button>
-            <button className={barButton} onClick={() => exportCsv(selected)}><FiDownload aria-hidden="true" /> Export</button>
-            <button className={barDanger} onClick={() => setConfirm(selected)}><FiTrash2 aria-hidden="true" /> Delete</button>
-          </>}
-        />
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[960px] border-collapse">
-            <thead>
-              <tr className="bg-subtle text-left text-xs uppercase tracking-wide text-muted">
-                <th className="w-12 py-3 pl-5 pr-1"><HeaderCheckbox selection={selection} pageIds={rows.map((t) => t.id)} /></th>
-                <th className="px-3 py-3 font-semibold">Template Name</th>
-                <th className="px-3 py-3 font-semibold">Sections</th>
-                <th className="px-3 py-3 font-semibold">Questions</th>
-                <th className="px-3 py-3 font-semibold">Settings</th>
-                <th className="px-3 py-3 font-semibold">Used in Pipelines</th>
-                <th className="px-3 py-3 font-semibold">Updated</th>
-                <th className="px-5 py-3 text-right font-semibold"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((t) => {
-                const checked = selection.has(t.id);
-                const st = t.organizersettings || {};
-                const pipes = usedIn.get(String(t.id)) || [];
-                return (
-                  <tr key={t.id} aria-selected={checked} className={cx('border-t border-line-soft', checked ? 'bg-brand-50' : 'hover:bg-subtle/60')}>
-                    <td className="py-3 pl-5 pr-1"><SelectCheckbox label={`Select ${t.templatename}`} checked={checked} onChange={() => selection.toggle(t.id)} /></td>
-                    <td className="max-w-[320px] px-3 py-3">
-                      <button onClick={() => openEdit(t)} className="text-left font-semibold hover:text-brand-600 hover:underline">{t.templatename}</button>
-                      <div className="truncate font-mono text-xs text-muted">{t.organizerName}</div>
-                    </td>
-                    <td className="px-3 py-3 text-sm"><span className="font-semibold">{t.sections.length}</span><span className="ml-1.5 text-muted">{t.sections.slice(0, 2).map((s) => s.text).join(', ')}{t.sections.length > 2 ? '…' : ''}</span></td>
-                    <td className="px-3 py-3 font-semibold">{questionCount(t)}</td>
-                    <td className="px-3 py-3">
-                      <div className="flex items-center gap-2 text-muted">
-                        {st.sendreminderstoclient && <span title={`Reminds every ${st.daysuntilnextreminder} days, ${st.numberofreminders} times`}><FiBell className="text-warning-700" aria-label="Sends reminders" /></span>}
-                        {st.notifyaboutdocumentupload && <span title="Notifies about document uploads"><FiUploadCloud aria-label="Notifies about uploads" /></span>}
-                        {st.organizerselfservice && <span title="Self service"><FiUserCheck aria-label="Self service" /></span>}
-                        {st.automaticallysealaftersubmission && <span title="Seals after submission"><FiLock aria-label="Seals after submission" /></span>}
-                        {!st.sendreminderstoclient && !st.notifyaboutdocumentupload && !st.organizerselfservice && !st.automaticallysealaftersubmission && <span>—</span>}
+      <DataCard
+        toolbar={<>
+          <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} label="Search organizer templates" placeholder="Search template, organizer name, section" className="h-8 w-full sm:w-80" />
+          {q && <Button variant="ghost" size="sm" onClick={() => { setQ(''); setPage(1); }} className="text-muted-foreground">Clear<X /></Button>}
+          <span className="ml-auto hidden text-sm text-muted-foreground md:inline">{filtered.length} of {organizerTemplates.length}</span>
+        </>}
+        footer={filtered.length > 0 && <Pagination {...paging} label="templates" />}
+      >
+        <Table className="min-w-[960px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10"><HeaderCheckbox selection={selection} pageIds={rows.map((t) => t.id)} /></TableHead>
+              <TableHead>Template Name</TableHead>
+              <TableHead>Sections</TableHead>
+              <TableHead className="text-right">Questions</TableHead>
+              <TableHead>Settings</TableHead>
+              <TableHead>Used in Pipelines</TableHead>
+              <TableHead>Updated</TableHead>
+              <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((t) => {
+              const checked = selection.has(t.id);
+              const st = t.organizersettings || {};
+              const pipes = usedIn.get(String(t.id)) || [];
+              const anySetting = st.sendreminderstoclient || st.notifyaboutdocumentupload || st.organizerselfservice || st.automaticallysealaftersubmission;
+              return (
+                <TableRow key={t.id} aria-selected={checked} data-state={checked ? 'selected' : undefined}>
+                  <TableCell><SelectCheckbox label={`Select ${t.templatename}`} checked={checked} onChange={() => selection.toggle(t.id)} /></TableCell>
+                  <TableCell className="max-w-[320px]">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex size-8 flex-none items-center justify-center rounded-lg border bg-subtle text-muted-foreground" aria-hidden="true"><ClipboardList className="size-4" /></span>
+                      <div className="min-w-0">
+                        <button type="button" onClick={() => openEdit(t)} className="block max-w-full truncate text-left font-medium text-foreground underline-offset-4 hover:underline">{t.templatename}</button>
+                        <div className="truncate font-mono text-xs text-muted-foreground">{t.organizerName}</div>
                       </div>
-                    </td>
-                    <td className="px-3 py-3 text-sm">{pipes.length ? <span title={pipes.join(', ')}>{pipes.length} pipeline{pipes.length > 1 ? 's' : ''}</span> : <span className="text-muted">—</span>}</td>
-                    <td className="whitespace-nowrap px-3 py-3 text-muted">{fmtDate(t.updatedAt)}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex justify-end">
-                        <RowActionsMenu label={t.templatename} onEdit={() => openEdit(t)}
-                          onDuplicate={() => { duplicateOrganizerTemplates([t.id]); notify(`Duplicated “${t.templatename}”`); }}
-                          extra={[{ label: 'Preview', icon: FiEye, onClick: () => setPreview(t) }]}
-                          onDelete={() => setConfirm([t])} />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="flex flex-col items-center gap-3 p-12 text-center text-muted">
-              {organizerTemplates.length ? 'No organizer templates match your search.' : 'No organizer templates found'}
-              {!organizerTemplates.length && <><span className="text-sm">Create your first organizer template to get started</span><button onClick={openNew} className="btn-primary">+ Create Template</button></>}
-            </div>
-          )}
-        </div>
-        <Pagination {...paging} label="templates" />
-      </section>
+                    </div>
+                  </TableCell>
+                  <TableCell className="max-w-[260px]">
+                    <div className="flex items-center gap-2">
+                      <Badge variant="neutral" className="tabular-nums">{t.sections.length}</Badge>
+                      <span className="truncate text-sm text-muted-foreground">{t.sections.slice(0, 2).map((s) => s.text).join(', ')}{t.sections.length > 2 ? '…' : ''}</span>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right font-medium tabular-nums">{questionCount(t)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-1">
+                      {st.sendreminderstoclient && <SettingIcon icon={Bell} label={`Reminds every ${st.daysuntilnextreminder} days, ${st.numberofreminders} times`} className="border-warning-100 bg-warning-50 text-warning-700" />}
+                      {st.notifyaboutdocumentupload && <SettingIcon icon={CloudUpload} label="Notifies about document uploads" />}
+                      {st.organizerselfservice && <SettingIcon icon={UserCheck} label="Self service" />}
+                      {st.automaticallysealaftersubmission && <SettingIcon icon={Lock} label="Seals after submission" />}
+                      {!anySetting && <span className="text-muted-foreground/60">—</span>}
+                    </div>
+                  </TableCell>
+                  <TableCell>
+                    {pipes.length ? (
+                      <SimpleTooltip label={pipes.join(', ')}>
+                        <Badge variant="info" className="cursor-default"><Workflow aria-hidden="true" />{plural(pipes.length, 'pipeline')}</Badge>
+                      </SimpleTooltip>
+                    ) : <span className="text-muted-foreground/60">—</span>}
+                  </TableCell>
+                  <TableCell className="whitespace-nowrap text-muted-foreground">{fmtDate(t.updatedAt)}</TableCell>
+                  <TableCell className="text-right">
+                    <RowActionsMenu label={t.templatename} onEdit={() => openEdit(t)}
+                      onDuplicate={() => { duplicateOrganizerTemplates([t.id]); notify(`Duplicated “${t.templatename}”`); }}
+                      extra={[{ label: 'Preview', icon: Eye, onClick: () => setPreview(t) }]}
+                      onDelete={() => setConfirm([t])} />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {filtered.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={8}>
+                  {organizerTemplates.length ? (
+                    <EmptyState icon={SearchX} title="No organizer templates match your search." description="Try a different template, organizer or section name."
+                      action={<Button variant="outline" onClick={() => { setQ(''); setSelectedOnly(false); setPage(1); }}>Clear search</Button>} />
+                  ) : (
+                    <EmptyState icon={ClipboardList} title="No organizer templates found" description="Create your first organizer template to get started"
+                      action={<Button onClick={openNew}><Plus />Create Template</Button>} />
+                  )}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </DataCard>
+
+      <BulkBar count={selection.count} total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <button type="button" className={barButton} onClick={() => { duplicateOrganizerTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
+          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
 
       {preview && <OrganizerPreview organizer={preview} onClose={() => setPreview(null)} />}
       {confirm && (
-        <Modal title={confirm.length === 1 ? 'Delete Organizer Template' : `Delete ${confirm.length} organizer templates?`} onClose={() => setConfirm(null)}
-          footer={<><button className="btn-secondary" onClick={() => setConfirm(null)}>Cancel</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={remove}>Delete</button></>}>
-          <p className="text-muted">{confirm.length === 1 ? <>Are you sure you want to delete <span className="font-semibold text-danger-700">“{confirm[0].templatename}”</span>?</> : 'Are you sure you want to delete these templates?'} Organizers already sent are not affected.</p>
+        <Modal title={confirm.length === 1 ? 'Delete Organizer Template' : `Delete ${confirm.length} organizer templates?`}
+          description="Organizers already sent are not affected." onClose={() => setConfirm(null)}
+          footer={<><Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button><Button variant="destructive" onClick={remove}><Trash2 />Delete</Button></>}>
+          {confirm.length === 1 ? (
+            <p className="text-sm text-muted-foreground">Are you sure you want to delete <span className="font-medium text-foreground">“{confirm[0].templatename}”</span>?</p>
+          ) : (
+            <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border">
+              {confirm.map((t) => (
+                <li key={t.id} className="flex items-center gap-3 px-3 py-2 text-sm">
+                  <ClipboardList className="size-4 text-muted-foreground" aria-hidden="true" /><span className="truncate font-medium">{t.templatename}</span>
+                  <span className="ml-auto flex-none text-xs tabular-nums text-muted-foreground">{questionCount(t)} questions</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </Modal>
       )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
     </div>
   );
 }

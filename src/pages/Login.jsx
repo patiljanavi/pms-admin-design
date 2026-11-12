@@ -1,7 +1,11 @@
 import { useState } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import AuthShell from '../components/AuthShell';
+import { ArrowRight, CircleAlert, CircleCheck, KeyRound } from 'lucide-react';
+import AuthShell, { AuthField, GoogleIcon, PasswordInput } from '../components/AuthShell';
 import { Checkbox } from '../components/ui';
+import { Alert, AlertDescription } from '../components/ui/alert';
+import { Button } from '../components/ui/button';
+import { Input } from '../components/ui/input';
 import { useAuth } from '../context/AuthContext';
 import { HOME_PATH } from '../config';
 
@@ -14,9 +18,15 @@ export default function Login() {
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
   const [error, setError] = useState('');
+  const [submitted, setSubmitted] = useState(false);
+
+  // Inline hints appear only after the first submit attempt, then update as the user types.
+  const emailError = submitted && !email.includes('@') ? 'Enter a valid email address.' : '';
+  const passwordError = submitted && !password ? 'Enter your password.' : '';
 
   const submit = (e) => {
     e.preventDefault();
+    setSubmitted(true);
     if (!email.includes('@') || !password) { setError('Enter a valid email and your password.'); return; }
     signIn(email);
     navigate(state?.from || HOME_PATH, { replace: true });
@@ -24,33 +34,53 @@ export default function Login() {
 
   return (
     <AuthShell>
-      <form onSubmit={submit} noValidate className="flex w-full max-w-[420px] flex-col gap-5 lg:mt-20">
-        <div>
-          <h2 className="text-3xl font-bold">Sign in</h2>
-          <p className="mt-1.5 text-muted">Welcome back. Enter your details to continue.</p>
+      <form onSubmit={submit} noValidate className="flex w-full max-w-[400px] flex-col gap-6">
+        <div className="flex flex-col gap-1.5">
+          <h2 className="text-3xl font-semibold tracking-tight">Sign in</h2>
+          <p className="text-muted-foreground">Welcome back. Enter your details to continue.</p>
         </div>
-        {state?.created && <div role="status" className="rounded bg-success-50 px-3.5 py-3 font-semibold text-success-700">Account created. Sign in with your email and new password.</div>}
-        {error && <div role="alert" className="rounded bg-danger-50 px-3.5 py-3 font-semibold text-danger-700">{error}</div>}
-        <label className="field-label">Email
-          <input className="input" type="email" autoComplete="email" value={email} onChange={(e) => { setEmail(e.target.value); setError(''); }} placeholder="you@company.com" />
-        </label>
-        <label className="field-label">Password
-          <span className="flex gap-2">
-            <input className="input" type={show ? 'text' : 'password'} autoComplete="current-password" value={password} onChange={(e) => { setPassword(e.target.value); setError(''); }} placeholder="Your password" />
-            <button type="button" className="btn-secondary px-3.5" onClick={() => setShow((s) => !s)}>{show ? 'Hide' : 'Show'}</button>
-          </span>
-        </label>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <Checkbox checked={remember} onChange={setRemember}>Remember me</Checkbox>
-          <button type="button" className="btn-link">Forgot password?</button>
+
+        {state?.created && (
+          <Alert variant="success" role="status">
+            <CircleCheck aria-hidden="true" />
+            <AlertDescription>Account created. Sign in with your email and new password.</AlertDescription>
+          </Alert>
+        )}
+        {error && (
+          <Alert variant="destructive">
+            <CircleAlert aria-hidden="true" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+
+        <div className="flex flex-col gap-4">
+          <AuthField id="login-email" label="Email" error={emailError}>
+            <Input id="login-email" type="email" autoComplete="email" autoFocus={!email} value={email}
+              aria-invalid={!!emailError} aria-describedby={emailError ? 'login-email-error' : undefined}
+              onChange={(e) => { setEmail(e.target.value); setError(''); }} placeholder="you@company.com" />
+          </AuthField>
+          <AuthField id="login-password" label="Password" error={passwordError}
+            action={<button type="button" className="rounded-sm text-sm font-medium text-primary underline-offset-4 hover:underline">Forgot password?</button>}>
+            <PasswordInput id="login-password" autoComplete="current-password" value={password} shown={show} onShownChange={setShow}
+              aria-invalid={!!passwordError} aria-describedby={passwordError ? 'login-password-error' : undefined}
+              onChange={(e) => { setPassword(e.target.value); setError(''); }} placeholder="Your password" />
+          </AuthField>
+          <Checkbox checked={remember} onChange={setRemember} className="self-start">Remember me</Checkbox>
         </div>
-        <button type="submit" className="btn-primary w-full">Sign in</button>
-        <div className="flex items-center gap-3 text-sm text-muted"><span className="h-px flex-1 bg-line" />or<span className="h-px flex-1 bg-line" /></div>
+
+        <Button type="submit" size="lg" className="w-full">Sign in<ArrowRight /></Button>
+
+        <div className="flex items-center gap-3 text-xs font-medium uppercase tracking-wider text-muted-foreground">
+          <span className="h-px flex-1 bg-border" />or<span className="h-px flex-1 bg-border" />
+        </div>
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
-          <button type="button" className="btn-secondary">Continue with Google</button>
-          <button type="button" className="btn-secondary">Continue with SSO</button>
+          <Button type="button" variant="outline"><GoogleIcon className="size-4" />Continue with Google</Button>
+          <Button type="button" variant="outline"><KeyRound />Continue with SSO</Button>
         </div>
-        <p className="text-center text-muted">New to Harbor? <Link to="/register" className="btn-link">Create an account</Link></p>
+
+        <p className="text-center text-sm text-muted-foreground">
+          New to Harbor? <Link to="/register" className="font-medium text-primary underline-offset-4 hover:underline">Create an account</Link>
+        </p>
       </form>
     </AuthShell>
   );

@@ -1,38 +1,48 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router-dom';
-import { FiArrowLeft, FiBell, FiCheckSquare, FiFileText, FiMenu, FiMessageSquare, FiPlus, FiTrash2 } from 'react-icons/fi';
+import { useNavigate, useParams } from 'react-router-dom';
+import { AlignLeft, Bell, Clock, FileText, ListChecks, MessageSquare } from 'lucide-react';
+import { cn } from 'lib/utils';
 import ShortcodeTextField from '../../../components/ShortcodeTextField';
 import TextEditor from '../../../components/TextEditor';
-import { Modal, Toggle, cx } from '../../../components/ui';
+import { Avatar, Modal, initials } from '../../../components/ui';
+import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { useData } from '../../../context/DataContext';
 import { SENDERS } from '../../../data/emailtemplates';
 import { contactShortcuts } from '../../../data/shortcodes';
 import { emptyChatTemplate } from '../../../data/chatTemplates';
+import { ToastBridge } from '../../../components/ui/sonner';
+import {
+  ChecklistEditor, EditorActionBar, EditorHeader, EditorNotFound, ErrorSummary, Field, FormSection, SwitchRow, fmtDate, invalidProps,
+} from '../templateKit';
 
 const LIST_PATH = '/firmtemp/templates/chats';
 const clone = (o) => JSON.parse(JSON.stringify(o));
 /** Works whether a field calls onChange(text) or onChange(event). */
 const textOf = (v) => (v && typeof v === 'object' && v.target ? v.target.value : v ?? '');
 
-function Section({ title, icon, description, children }) {
-  return (
-    <section className="card p-5 sm:p-6">
-      <div className="mb-4">
-        <h2 className="flex items-center gap-2 text-lg font-semibold">{icon}{title}</h2>
-        {description && <p className="mt-0.5 text-sm text-muted">{description}</p>}
-      </div>
-      <div className="flex flex-col gap-4">{children}</div>
-    </section>
-  );
-}
-function SwitchRow({ label, description, checked, onChange }) {
-  return (
-    <div className="flex items-start justify-between gap-4 rounded-md border border-line p-3.5">
-      <div><div className="font-semibold">{label}</div>{description && <div className="text-sm text-muted">{description}</div>}</div>
-      <Toggle label={label} checked={checked} onChange={onChange} />
-    </div>
-  );
-}
+// Previous local layout helpers, replaced by FormSection / SwitchRow from ../templateKit (shadcn Card + Switch):
+// function Section({ title, icon, description, children }) {
+//   return (
+//     <section className="card p-5 sm:p-6">
+//       <div className="mb-4">
+//         <h2 className="flex items-center gap-2 text-lg font-semibold">{icon}{title}</h2>
+//         {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+//       </div>
+//       <div className="flex flex-col gap-4">{children}</div>
+//     </section>
+//   );
+// }
+// function SwitchRow({ label, description, checked, onChange }) {
+//   return (
+//     <div className="flex items-start justify-between gap-4 rounded-md border border-line p-3.5">
+//       <div><div className="font-semibold">{label}</div>{description && <div className="text-sm text-muted-foreground">{description}</div>}</div>
+//       <Toggle label={label} checked={checked} onChange={onChange} />
+//     </div>
+//   );
+// }
 
 /**
  * Create / edit a chat template (same pattern as the task, email and job forms).
@@ -56,7 +66,6 @@ function FormPage({ editingId }) {
   const [errors, setErrors] = useState({});
   const [modal, setModal] = useState(null); // 'discard' | 'delete'
   const [toast, setToast] = useState('');
-  const [dragIndex, setDragIndex] = useState(null);
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
   const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2600); };
   const set = (k, v) => { const value = textOf(v); setForm((f) => ({ ...f, [k]: value })); setErrors((e) => ({ ...e, [k]: undefined })); };
@@ -68,14 +77,9 @@ function FormPage({ editingId }) {
     return () => window.removeEventListener('beforeunload', h);
   }, [dirty]);
 
-  if (!saveChatTemplate) return <div role="alert" className="card bg-danger-50 p-6 font-semibold text-danger-700">Chat templates are not set up in DataContext.js</div>;
+  if (!saveChatTemplate) return <div role="alert" className="rounded-xl border border-danger-100 bg-danger-50 p-6 text-sm font-medium text-danger-700">Chat templates are not set up in DataContext.js</div>;
   if (editingId && !existing) {
-    return (
-      <div className="flex flex-col items-start gap-4">
-        <h1 className="text-3xl font-bold">Chat template not found</h1>
-        <Link to={LIST_PATH} className="btn-primary">Back to chat templates</Link>
-      </div>
-    );
+    return <EditorNotFound title="Chat template not found" backTo={LIST_PATH} backLabel="Back to chat templates" />;
   }
 
   /* ---------- client tasks (subtasks) ---------- */
@@ -135,116 +139,105 @@ function FormPage({ editingId }) {
   };
   const handleCloseChatTemp = () => (dirty ? setModal('discard') : navigate(LIST_PATH));
 
+  const taskCount = form.SubtaskSwitch ? subtasks.filter((s) => s.text.trim()).length : 0;
+
   return (
     <div className="flex flex-col gap-6">
-      {/* Header */}
-      <header className="flex flex-wrap items-center gap-4">
-        <button onClick={handleCloseChatTemp} aria-label="Back to chat templates" className="flex h-10 w-10 items-center justify-center rounded border border-line-strong bg-surface hover:bg-subtle"><FiArrowLeft size={18} /></button>
-        <div className="min-w-0 flex-1">
-          <nav aria-label="Breadcrumb" className="text-sm text-muted">
-            <Link to="/firmtemp/templates" className="hover:underline">Firm Templates</Link> / <Link to={LIST_PATH} className="hover:underline">Chats</Link>
-          </nav>
-          <h1 className="flex items-center gap-2 truncate text-2xl font-bold sm:text-3xl"><FiMessageSquare className="text-brand-600" aria-hidden="true" />{isEditMode ? 'Edit Chat Template' : 'Create Chat Template'}</h1>
-          <p className="text-muted">Configure your chat template</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {isEditMode && <button type="button" className="btn border border-danger-200 bg-surface text-danger-700 hover:bg-danger-50" onClick={() => setModal('delete')}><FiTrash2 aria-hidden="true" /> Delete</button>}
-          <button type="button" className="btn-secondary" onClick={handleCloseChatTemp}>Cancel</button>
-          <button type="button" className="btn border border-brand-600 bg-brand-50 text-brand-600 hover:bg-brand-100" onClick={saveSchat}>Save</button>
-          <button type="button" className="btn-primary" onClick={savechat}>Save &amp; Exit</button>
-        </div>
-      </header>
+      <EditorHeader
+        backLabel="Chat templates" backAriaLabel="Back to chat templates" onBack={handleCloseChatTemp}
+        icon={MessageSquare}
+        title={isEditMode ? 'Edit Chat Template' : 'Create Chat Template'}
+        badges={<>
+          {form.sendReminders && <Badge variant="warning" shape="pill"><Bell />Reminders on</Badge>}
+          {!isEditMode && <Badge variant="info" shape="pill">New</Badge>}
+        </>}
+        description="Configure your chat template"
+        meta={existing?.updatedAt ? <><Clock className="size-3.5" aria-hidden="true" />Last updated {fmtDate(existing.updatedAt)}</> : null}
+      />
 
-      {dirty && <div className="rounded-md border border-warning-300 bg-warning-50 px-4 py-2.5 text-sm font-semibold text-warning-700">You have unsaved changes.</div>}
-      {Object.values(errors).some(Boolean) && <div role="alert" className="rounded-md bg-danger-50 px-4 py-3 font-semibold text-danger-700">Please fix the highlighted fields.</div>}
+      <ErrorSummary show={Object.values(errors).some(Boolean)} />
 
       <div className="grid grid-cols-1 items-start gap-6 xl:grid-cols-[minmax(0,1fr)_380px]">
         {/* LEFT COLUMN */}
-        <div className="flex flex-col gap-6">
-          <Section title="Template Details" icon={<FiFileText aria-hidden="true" />}>
-            <label className="field-label">
-              <span>Name <span className="text-danger-700">*</span></span>
-              <input className={cx('input', errors.templateName && 'border-danger-700')} value={form.templateName} onChange={(e) => set('templateName', e.target.value)} placeholder="Template Name" />
-              {errors.templateName && <span className="text-sm font-normal text-danger-700">{errors.templateName}</span>}
-            </label>
-            <label className="field-label">
-              <span>From <span className="text-danger-700">*</span></span>
-              <select className={cx('input', errors.selecteduser && 'border-danger-700')} value={form.selecteduser?.value || ''}
-                onChange={(e) => set('selecteduser', SENDERS.find((o) => o.value === e.target.value) || null)}>
-                <option value="">Select Sender</option>
-                {SENDERS.map((opt) => <option key={opt.value} value={opt.value}>{opt.label}</option>)}
-              </select>
-              {errors.selecteduser && <span className="text-sm font-normal text-danger-700">{errors.selecteduser}</span>}
-            </label>
+        <div className="flex min-w-0 flex-col gap-6">
+          <FormSection icon={FileText} title="Template details" description="Name the template and choose who the chat comes from.">
+            <Field id="ct-name" label="Name" required error={errors.templateName}>
+              <Input id="ct-name" value={form.templateName} onChange={(e) => set('templateName', e.target.value)}
+                placeholder="Template Name" {...invalidProps('ct-name', errors.templateName)} />
+            </Field>
+            <Field id="ct-from" label="From" required error={errors.selecteduser}>
+              <Select value={form.selecteduser?.value || ''} onValueChange={(v) => set('selecteduser', SENDERS.find((o) => o.value === v) || null)}>
+                <SelectTrigger id="ct-from" className={cn(errors.selecteduser && 'border-destructive ring-[3px] ring-destructive/15')} {...invalidProps('ct-from', errors.selecteduser)}>
+                  <SelectValue placeholder="Select Sender" />
+                </SelectTrigger>
+                <SelectContent>
+                  {SENDERS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>
+                      <span className="flex items-center gap-2"><Avatar text={initials(opt.label)} size="xs" />{opt.label}</span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
             <ShortcodeTextField label="Subject" required value={form.inputText} onChange={(v) => set('inputText', v)}
               placeholder="Enter chat subject..." shortcuts={contactShortcuts} error={errors.inputText} />
-          </Section>
+          </FormSection>
 
-          <Section title="Description">
+          <FormSection icon={AlignLeft} title="Description" description="The chat message your client receives.">
             <TextEditor ariaLabel="Chat message" value={form.description} onChange={(html) => set('description', html)} shortcuts={contactShortcuts}
               placeholder="Write the chat message…" minHeight={200} />
-          </Section>
+          </FormSection>
 
-          <Section title="Reminders" icon={<FiBell aria-hidden="true" />}>
+          <FormSection icon={Bell} title="Reminders" description="Nudge the client automatically until they reply.">
             <SwitchRow label="Send reminders to clients" description="Remind the client until they reply or finish their tasks"
               checked={!!form.sendReminders} onChange={(v) => set('sendReminders', v)} />
             {form.sendReminders && (
-              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <label className="field-label">Days until next reminder
-                  <input className={cx('input', errors.daysuntilNextReminder && 'border-danger-700')} type="number" min="1" placeholder="Days until next reminder"
-                    value={form.daysuntilNextReminder} onChange={(e) => set('daysuntilNextReminder', e.target.value)} />
-                  {errors.daysuntilNextReminder && <span className="text-sm font-normal text-danger-700">{errors.daysuntilNextReminder}</span>}
-                </label>
-                <label className="field-label">No. of reminders
-                  <input className={cx('input', errors.noOfReminder && 'border-danger-700')} type="number" min="1" placeholder="Number of reminders"
-                    value={form.noOfReminder} onChange={(e) => set('noOfReminder', e.target.value)} />
-                  {errors.noOfReminder && <span className="text-sm font-normal text-danger-700">{errors.noOfReminder}</span>}
-                </label>
+              <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
+                <Field id="ct-days" label="Days until next reminder" error={errors.daysuntilNextReminder}>
+                  <Input id="ct-days" type="number" min="1" placeholder="Days until next reminder"
+                    value={form.daysuntilNextReminder} onChange={(e) => set('daysuntilNextReminder', e.target.value)} {...invalidProps('ct-days', errors.daysuntilNextReminder)} />
+                </Field>
+                <Field id="ct-count" label="No. of reminders" error={errors.noOfReminder}>
+                  <Input id="ct-count" type="number" min="1" placeholder="Number of reminders"
+                    value={form.noOfReminder} onChange={(e) => set('noOfReminder', e.target.value)} {...invalidProps('ct-count', errors.noOfReminder)} />
+                </Field>
               </div>
             )}
-          </Section>
+          </FormSection>
         </div>
 
         {/* RIGHT COLUMN: Client Tasks */}
-        <aside className="flex flex-col gap-6 xl:sticky xl:top-24">
-          <Section title="Client Tasks" icon={<FiCheckSquare aria-hidden="true" />} description="A checklist the client sees with this chat">
+        <aside className="flex min-w-0 flex-col gap-6 xl:sticky xl:top-[calc(var(--app-header-h,0px)+4.5rem)]">
+          <FormSection icon={ListChecks} title="Client Tasks" description="A checklist the client sees with this chat"
+            action={form.SubtaskSwitch ? <Badge variant="secondary" shape="pill" className="tabular-nums">{taskCount}</Badge> : null}>
             <SwitchRow label="Enable Client Tasks" checked={!!form.SubtaskSwitch} onChange={handleSubtaskSwitch} />
             {form.SubtaskSwitch && (
-              <div className="flex flex-col gap-2">
-                {subtasks.map((s, index) => (
-                  <div key={s.id} draggable onDragStart={() => setDragIndex(index)} onDragEnd={() => setDragIndex(null)}
-                    onDragOver={(e) => e.preventDefault()} onDrop={() => { moveSubtask(dragIndex, index); setDragIndex(null); }}
-                    className={cx('flex items-center gap-2 rounded-md border bg-surface p-2', dragIndex === index ? 'border-brand-600 opacity-60' : 'border-line')}>
-                    <input type="checkbox" checked={s.checked} onChange={() => handleCheckboxChange(s.id)} aria-label={`Client task ${index + 1} done`} className="h-[18px] w-[18px] flex-none accent-brand-600" />
-                    <input className="min-h-[38px] min-w-0 flex-1 rounded border border-transparent px-2 hover:border-line focus:border-brand-600 focus:outline-none"
-                      value={s.text} onChange={(e) => handleInputChange(s.id, e.target.value)} placeholder="Things to do" aria-label={`Client task ${index + 1}`} />
-                    <button type="button" onClick={() => moveSubtask(index, index - 1)} disabled={index === 0} aria-label={`Move client task ${index + 1} up`} className="h-8 w-7 flex-none rounded text-muted hover:bg-subtle disabled:opacity-30">↑</button>
-                    <button type="button" onClick={() => moveSubtask(index, index + 1)} disabled={index === subtasks.length - 1} aria-label={`Move client task ${index + 1} down`} className="h-8 w-7 flex-none rounded text-muted hover:bg-subtle disabled:opacity-30">↓</button>
-                    <button type="button" onClick={() => handleDeleteSubtask(s.id)} aria-label={`Delete client task ${index + 1}`} className="flex h-8 w-8 flex-none items-center justify-center rounded text-danger-700 hover:bg-danger-50"><FiTrash2 aria-hidden="true" /></button>
-                    <span className="flex h-8 w-6 flex-none cursor-grab items-center justify-center text-muted" title="Drag to reorder" aria-hidden="true"><FiMenu /></span>
-                  </div>
-                ))}
-                <button type="button" onClick={handleAddSubtask} className="btn w-full border border-dashed border-line-strong bg-surface text-brand-600 hover:bg-subtle"><FiPlus aria-hidden="true" /> Add Subtask</button>
-                <p className="text-xs text-muted">Drag ☰ or use ↑ ↓ to reorder. Empty tasks are removed when you save.</p>
-              </div>
+              <ChecklistEditor items={subtasks} itemLabel="Client task" doneSuffix="done"
+                placeholder="Things to do" addLabel="Add Subtask"
+                hint="Drag the handle or use the arrows to reorder. Empty tasks are removed when you save."
+                onAdd={handleAddSubtask} onText={handleInputChange} onToggle={handleCheckboxChange}
+                onDelete={handleDeleteSubtask} onMove={moveSubtask} />
             )}
-          </Section>
+          </FormSection>
         </aside>
       </div>
 
+      <EditorActionBar isEdit={isEditMode} dirty={dirty} saving={false}
+        onDelete={() => setModal('delete')} onCancel={handleCloseChatTemp} onSave={saveSchat} onSaveExit={savechat} />
+
       {modal === 'discard' && (
-        <Modal title="Discard changes?" onClose={() => setModal(null)}
-          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Keep editing</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={() => navigate(LIST_PATH)}>Discard</button></>}>
-          <p className="text-muted">Your changes to this chat template haven't been saved.</p>
+        <Modal title="Discard changes?" description="Your changes to this chat template haven't been saved." onClose={() => setModal(null)}
+          footer={<><Button variant="outline" onClick={() => setModal(null)}>Keep editing</Button><Button variant="destructive" onClick={() => navigate(LIST_PATH)}>Discard</Button></>}>
+          <p className="text-sm text-muted-foreground">If you leave now, everything you changed since the last save is lost.</p>
         </Modal>
       )}
       {modal === 'delete' && (
-        <Modal title={`Delete “${saved.templateName}”?`} onClose={() => setModal(null)}
-          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={() => { deleteChatTemplates([editingId]); navigate(LIST_PATH, { state: { toast: `Deleted “${saved.templateName}”` } }); }}>Delete</button></>}>
-          <p className="text-muted">Chats already sent from this template are not affected.</p>
+        <Modal title={`Delete “${saved.templateName}”?`} description="Chats already sent from this template are not affected." onClose={() => setModal(null)}
+          footer={<><Button variant="outline" onClick={() => setModal(null)}>Cancel</Button><Button variant="destructive" onClick={() => { deleteChatTemplates([editingId]); navigate(LIST_PATH, { state: { toast: `Deleted “${saved.templateName}”` } }); }}>Delete</Button></>}>
+          <p className="text-sm text-muted-foreground">This template is removed for everyone in your firm. This can't be undone.</p>
         </Modal>
       )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
+      <ToastBridge message={toast} />
     </div>
   );
 }

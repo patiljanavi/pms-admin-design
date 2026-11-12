@@ -24,15 +24,30 @@ export function textOn(hex) {
   const L = luminance(hex);
   return ratio(L, 1) >= ratio(L, luminance('#0F1B2D')) ? '#FFFFFF' : '#0F1B2D';
 }
-export const chipStyle = (hex) => ({ backgroundColor: isHex(hex) ? hex : '#475569', color: textOn(hex) });
+/** Solid chip (white or ink text on the colour). */
+export const solidStyle = (hex) => ({ backgroundColor: isHex(hex) ? hex : '#475569', color: textOn(hex) });
 
-/** A tag rendered as a coloured chip. */
+/**
+ * Soft chip: a light tint of the colour with readable tinted text. Mixing with the theme
+ * foreground keeps contrast in both light and dark mode.
+ */
+export const chipStyle = (hex) => {
+  const c = isHex(hex) ? hex : '#475569';
+  return {
+    backgroundColor: `color-mix(in srgb, ${c} 13%, transparent)`,
+    color: `color-mix(in srgb, ${c} 70%, hsl(var(--foreground)))`,
+    boxShadow: `inset 0 0 0 1px color-mix(in srgb, ${c} 24%, transparent)`,
+  };
+};
+
+/** A tag rendered as a soft coloured chip with a dot. */
 export default function TagChip({ tag, size = 'sm', className }) {
   if (!tag) return null;
   return (
     <span style={chipStyle(tag.color)}
-      className={cx('inline-flex max-w-full items-center truncate rounded-full font-semibold', size === 'xs' ? 'px-2 py-0.5 text-xs' : 'px-2.5 py-0.5 text-sm', className)}>
-      {tag.label}
+      className={cx('inline-flex max-w-full items-center gap-1.5 truncate rounded-md font-medium', size === 'xs' ? 'h-5 px-1.5 text-[11px]' : 'h-6 px-2 text-xs', className)}>
+      <span className="size-1.5 flex-none rounded-full" style={{ backgroundColor: isHex(tag.color) ? tag.color : '#475569' }} aria-hidden="true" />
+      <span className="truncate">{tag.label}</span>
     </span>
   );
 }

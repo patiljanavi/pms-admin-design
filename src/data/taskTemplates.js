@@ -11,10 +11,10 @@ export const DURATION_OPTIONS = [
 export const STATUS_STYLE = {
   Active: 'bg-success-50 text-success-700',
   Draft: 'bg-warning-50 text-warning-700',
-  Inactive: 'bg-[#E8EDF5] text-muted',
+  Inactive: 'bg-muted text-muted-foreground',
 };
 export const PRIORITY_STYLE = {
-  Low: 'bg-[#E8EDF5] text-muted',
+  Low: 'bg-muted text-muted-foreground',
   Medium: 'bg-brand-100 text-brand-800',
   High: 'bg-warning-50 text-warning-700',
   Urgent: 'bg-danger-50 text-danger-700',

@@ -1,5 +1,8 @@
-import { FiPlus, FiTrash2 } from 'react-icons/fi';
+import { GitBranch, Info, Plus, Trash2 } from 'lucide-react';
 import { newCondition } from '../../data/organizerTemplates';
+import { Button } from '../ui/button';
+import { SimpleTooltip } from '../ui/tooltip';
+import { Select, SelectContent, SelectGroup, SelectItem, SelectLabel, SelectTrigger, SelectValue } from '../ui/select';
 
 /**
  * Mode (Any / All) + a list of "question = answer" conditions.
@@ -12,46 +15,67 @@ export default function ConditionsEditor({ settings, onChange, questions, label 
   const bySection = questions.reduce((m, q) => { (m[q.sectionName] = m[q.sectionName] || []).push(q); return m; }, {});
 
   if (!questions.length) {
-    return <p className="rounded-md bg-subtle p-3 text-sm text-muted">Add a Radio Buttons, Checkboxes, Dropdown or Yes/No question first — conditions are based on their answers.</p>;
+    return (
+      <p className="flex items-start gap-2 rounded-lg border border-dashed bg-card p-3 text-sm text-muted-foreground">
+        <Info className="mt-0.5 size-4 flex-none" aria-hidden="true" />
+        Add a Radio Buttons, Checkboxes, Dropdown or Yes/No question first — conditions are based on their answers.
+      </p>
+    );
   }
   return (
     <div className="flex flex-col gap-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h4 className="font-semibold">{label}</h4>
-        <label className="flex items-center gap-2 text-sm">Show when
-          <select aria-label="Condition mode" className="input min-h-[36px] w-auto py-0 text-sm" value={settings.mode || 'Any'} onChange={(e) => onChange({ mode: e.target.value })}>
-            <option value="Any">Any condition is met</option>
-            <option value="All">All conditions are met</option>
-          </select>
-        </label>
+        <h4 className="inline-flex items-center gap-1.5 text-sm font-semibold"><GitBranch className="size-3.5 text-muted-foreground" aria-hidden="true" />{label}</h4>
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">Show when
+          <Select value={settings.mode || 'Any'} onValueChange={(v) => onChange({ mode: v })}>
+            <SelectTrigger aria-label="Condition mode" className="h-8 w-auto gap-1.5 text-foreground"><SelectValue /></SelectTrigger>
+            <SelectContent align="end">
+              <SelectItem value="Any">Any condition is met</SelectItem>
+              <SelectItem value="All">All conditions are met</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
       </div>
-      {conditions.map((c, i) => {
-        const question = questions.find((q) => String(q.id) === String(c.questionId));
-        return (
-          <div key={i} className="grid grid-cols-[1fr_1fr_auto] items-end gap-2 rounded-md border border-line p-2.5">
-            <label className="text-xs font-semibold text-muted">Question
-              <select aria-label={`Condition ${i + 1} question`} className="input mt-1 min-h-[38px] text-sm" value={c.questionId ?? ''}
-                onChange={(e) => { const qq = questions.find((x) => String(x.id) === e.target.value); setRow(i, { questionId: qq?.id ?? null, question: qq?.text || '', answer: '' }); }}>
-                <option value="">Select question</option>
-                {Object.entries(bySection).map(([section, qs]) => (
-                  <optgroup key={section} label={section}>
-                    {qs.map((qq) => <option key={qq.id} value={qq.id}>{qq.text || `Untitled ${qq.type.toLowerCase()}`}</option>)}
-                  </optgroup>
-                ))}
-              </select>
-            </label>
-            <label className="text-xs font-semibold text-muted">Answer
-              <select aria-label={`Condition ${i + 1} answer`} className="input mt-1 min-h-[38px] text-sm" value={c.answer || ''} disabled={!question} onChange={(e) => setRow(i, { answer: e.target.value })}>
-                <option value="">Select answer</option>
-                {(question?.options || []).filter((o) => o.text.trim()).map((o) => <option key={o.id} value={o.text}>{o.text}</option>)}
-              </select>
-            </label>
-            <button type="button" onClick={() => setConditions(conditions.filter((_, j) => j !== i))} aria-label={`Remove condition ${i + 1}`}
-              className="flex h-[38px] w-9 items-center justify-center rounded text-danger-700 hover:bg-danger-50"><FiTrash2 aria-hidden="true" /></button>
-          </div>
-        );
-      })}
-      <button type="button" onClick={() => setConditions([...conditions, newCondition()])} className="btn-link self-start px-0 text-sm"><FiPlus aria-hidden="true" /> Add condition</button>
+      <ol className="flex flex-col gap-2">
+        {conditions.map((c, i) => {
+          const question = questions.find((q) => String(q.id) === String(c.questionId));
+          const answers = (question?.options || []).filter((o) => o.text.trim());
+          return (
+            <li key={i} className="grid grid-cols-[1fr_auto] items-end gap-2 rounded-lg border bg-card p-2.5 shadow-xs sm:grid-cols-[auto_1fr_1fr_auto]">
+              <span className="hidden h-9 items-center text-xs font-medium uppercase tracking-wide text-muted-foreground sm:flex">{i === 0 ? 'If' : (settings.mode || 'Any') === 'All' ? 'And' : 'Or'}</span>
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="text-xs font-medium text-muted-foreground">Question</span>
+                <Select value={c.questionId == null ? '' : String(c.questionId)}
+                  onValueChange={(v) => { const qq = questions.find((x) => String(x.id) === v); setRow(i, { questionId: qq?.id ?? null, question: qq?.text || '', answer: '' }); }}>
+                  <SelectTrigger aria-label={`Condition ${i + 1} question`}><SelectValue placeholder="Select question" /></SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(bySection).map(([section, qs]) => (
+                      <SelectGroup key={section}>
+                        <SelectLabel>{section}</SelectLabel>
+                        {qs.map((qq) => <SelectItem key={qq.id} value={String(qq.id)}>{qq.text || `Untitled ${qq.type.toLowerCase()}`}</SelectItem>)}
+                      </SelectGroup>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="col-span-2 flex min-w-0 flex-col gap-1 sm:col-span-1">
+                <span className="text-xs font-medium text-muted-foreground">Answer</span>
+                <Select value={c.answer || ''} disabled={!question} onValueChange={(v) => setRow(i, { answer: v })}>
+                  <SelectTrigger aria-label={`Condition ${i + 1} answer`}><SelectValue placeholder="Select answer" /></SelectTrigger>
+                  <SelectContent>
+                    {answers.map((o) => <SelectItem key={o.id} value={o.text}>{o.text}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <SimpleTooltip label="Remove condition">
+                <Button type="button" variant="ghost" size="icon" onClick={() => setConditions(conditions.filter((_, j) => j !== i))} aria-label={`Remove condition ${i + 1}`}
+                  className="row-start-1 text-muted-foreground hover:bg-danger-50 hover:text-danger-700 sm:row-start-auto"><Trash2 aria-hidden="true" /></Button>
+              </SimpleTooltip>
+            </li>
+          );
+        })}
+      </ol>
+      <Button type="button" variant="outline" size="sm" onClick={() => setConditions([...conditions, newCondition()])} className="self-start"><Plus aria-hidden="true" /> Add condition</Button>
     </div>
   );
 }

@@ -1,8 +1,17 @@
-import { useState } from 'react';
-import { FiPlus } from 'react-icons/fi';
-import { Modal, cx } from './ui';
+import { useId, useState } from 'react';
+import { FolderPlus } from 'lucide-react';
+import { Modal } from './ui';
+import { Button } from './ui/button';
+import { Checkbox } from './ui/checkbox';
+import { Input } from './ui/input';
+import { Label } from './ui/label';
+import { Select, SelectContent, SelectItem, SelectSeparator, SelectTrigger, SelectValue } from './ui/select';
+import { Textarea } from './ui/textarea';
+import { SimpleTooltip } from './ui/tooltip';
 import CategoryModal from './CategoryModal';
 import { useData } from '../context/DataContext';
+
+const NO_CATEGORY = '__none__';
 
 /**
  * Modal to create or edit a service (with "+ Create category" opening a second modal).
@@ -10,6 +19,7 @@ import { useData } from '../context/DataContext';
  */
 export default function ServiceModal({ service = null, initial = {}, onSaved, onClose }) {
   const { saveService, serviceNameTaken, serviceCategories = [] } = useData();
+  const uid = useId();
   const isEdit = !!service?.id;
   const [form, setForm] = useState(() => ({ name: '', description: '', rate: 0, categoryId: null, taxable: false, ...initial, ...(service || {}) }));
   const [errors, setErrors] = useState({});
@@ -27,38 +37,56 @@ export default function ServiceModal({ service = null, initial = {}, onSaved, on
     onSaved(saveService({ ...form, id: service?.id, name: n, rate: Number(form.rate) || 0 }));
   };
 
+  const id = (k) => `${uid}-${k}`;
+
   return (
     <>
-      <Modal title={isEdit ? 'Edit service' : 'Create new service'} subtitle="Services you bill for. Line items can reuse them." onClose={onClose} width="max-w-lg"
-        footer={<><button type="button" className="btn-secondary" onClick={onClose}>Cancel</button><button type="button" className="btn-primary" onClick={save}>{isEdit ? 'Save service' : 'Create service'}</button></>}>
-        <form className="flex flex-col gap-4" noValidate onSubmit={(e) => { e.preventDefault(); save(); }}>
-          <label className="field-label">Service name *
-            <input autoFocus className={cx('input', errors.name && 'border-danger-700')} value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Payroll processing" />
-            {errors.name && <span className="text-sm font-normal text-danger-700">{errors.name}</span>}
-          </label>
-          <label className="field-label">Description
-            <textarea className="input min-h-[72px] py-2" value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="Shown on the invoice under the item name" />
-          </label>
+      <Modal title={isEdit ? 'Edit service' : 'Create new service'} description="Services you bill for. Line items can reuse them." onClose={onClose} width="max-w-lg"
+        footer={<><Button type="button" variant="outline" onClick={onClose}>Cancel</Button><Button type="button" onClick={save}>{isEdit ? 'Save service' : 'Create service'}</Button></>}>
+        <form className="flex flex-col gap-4" noValidate onSubmit={(e) => { e.preventDefault(); e.stopPropagation(); save(); }}>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={id('name')}>Service name <span className="text-danger-700">*</span></Label>
+            <Input id={id('name')} autoFocus value={form.name} onChange={(e) => set('name', e.target.value)} placeholder="e.g. Payroll processing"
+              aria-invalid={!!errors.name} aria-describedby={errors.name ? id('name-err') : undefined} />
+            {errors.name && <p id={id('name-err')} className="text-xs text-danger-700">{errors.name}</p>}
+          </div>
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor={id('desc')}>Description</Label>
+            <Textarea id={id('desc')} className="min-h-[72px] resize-y" value={form.description} onChange={(e) => set('description', e.target.value)} placeholder="Shown on the invoice under the item name" />
+          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <label className="field-label">Rate ($) *
-              <input type="number" min="0" step="0.01" className={cx('input', errors.rate && 'border-danger-700')} value={form.rate} onChange={(e) => set('rate', e.target.value)} />
-              {errors.rate && <span className="text-sm font-normal text-danger-700">{errors.rate}</span>}
-            </label>
-            <div className="field-label">
-              <label htmlFor="service-category">Category</label>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={id('rate')}>Rate ($) <span className="text-danger-700">*</span></Label>
+              <div className="relative">
+                <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground" aria-hidden="true">$</span>
+                <Input id={id('rate')} type="number" min="0" step="0.01" className="pl-7 tabular-nums" value={form.rate} onChange={(e) => set('rate', e.target.value)}
+                  aria-invalid={!!errors.rate} aria-describedby={errors.rate ? id('rate-err') : undefined} />
+              </div>
+              {errors.rate && <p id={id('rate-err')} className="text-xs text-danger-700">{errors.rate}</p>}
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor={id('cat')}>Category</Label>
               <div className="flex gap-2">
-                <select id="service-category" className="input min-w-0 flex-1" value={form.categoryId ?? ''} onChange={(e) => set('categoryId', e.target.value || null)}>
-                  <option value="">No category</option>
-                  {serviceCategories.map((c) => <option key={c.id} value={c.id}>{c.name}</option>)}
-                </select>
-                <button type="button" onClick={() => setCategoryOpen(true)} aria-label="Create category" title="Create category"
-                  className="flex h-11 w-11 flex-none items-center justify-center rounded border border-line-strong text-brand-600 hover:bg-subtle"><FiPlus aria-hidden="true" /></button>
+                <Select value={form.categoryId ? String(form.categoryId) : NO_CATEGORY} onValueChange={(v) => set('categoryId', v === NO_CATEGORY ? null : v)}>
+                  <SelectTrigger id={id('cat')} className="min-w-0 flex-1"><SelectValue placeholder="No category" /></SelectTrigger>
+                  <SelectContent className="max-h-72">
+                    <SelectItem value={NO_CATEGORY} className="text-muted-foreground">No category</SelectItem>
+                    {serviceCategories.length > 0 && <SelectSeparator />}
+                    {serviceCategories.map((c) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <SimpleTooltip label="Create category">
+                  <Button type="button" variant="outline" size="icon" onClick={() => setCategoryOpen(true)} aria-label="Create category" className="flex-none"><FolderPlus /></Button>
+                </SimpleTooltip>
               </div>
             </div>
           </div>
-          <label className="flex cursor-pointer items-center gap-2.5">
-            <input type="checkbox" checked={!!form.taxable} onChange={(e) => set('taxable', e.target.checked)} className="h-[18px] w-[18px] accent-brand-600" />
-            <span>Taxable <span className="text-sm text-muted">(line items using this service are taxed by default)</span></span>
+          <label htmlFor={id('tax')} className="flex cursor-pointer items-start gap-2.5 rounded-lg border bg-subtle/60 px-3 py-2.5 transition-colors hover:bg-subtle">
+            <Checkbox id={id('tax')} className="mt-0.5" checked={!!form.taxable} onCheckedChange={(v) => set('taxable', v === true)} />
+            <span className="flex flex-col gap-0.5 text-sm">
+              <span className="font-medium">Taxable</span>
+              <span className="text-xs text-muted-foreground">Line items using this service are taxed by default</span>
+            </span>
           </label>
           <button type="submit" className="hidden" tabIndex={-1} aria-hidden="true" />
         </form>

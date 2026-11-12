@@ -1,29 +1,67 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Link } from 'react-router-dom';
-import { FiArrowDown, FiArrowUp, FiDownload, FiTrash2 } from 'react-icons/fi';
+import { Link, useNavigate } from 'react-router-dom';
+import {
+  ArrowDown, ArrowUp, ArrowUpDown, Building2, CircleDashed, Download, Palette, Plus, SearchX, Settings2, Tag, Tags as TagsIcon, Trash2, X,
+} from 'lucide-react';
 import Pagination, { usePagination } from '../../../components/Pagination';
-import { FiSearch } from 'react-icons/fi';
-import { Modal, Segmented, cx } from '../../../components/ui';
+import { Modal, Segmented } from '../../../components/ui';
+import { Button } from '../../../components/ui/button';
+import { toast } from '../../../components/ui/sonner';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '../../../components/ui/dropdown-menu';
+import { DataCard, EmptyState, PageHeader, SearchInput, StatCard } from '../../../components/page';
+import FacetFilter from '../../../components/FacetFilter';
 import TagChip, { TAG_PALETTE, colorName } from '../../../components/TagChip';
 import { BarSelect, BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection } from '../../../components/TableSelection';
 import { useData } from '../../../context/DataContext';
 import TagDrawer from '../../../components/TagDrawer';
 import { ACCOUNTS_PATH } from '../../../config';
 import RowActionsMenu from '../../../components/RowActionsMenu';
+import { cn } from 'lib/utils';
 
 const USAGE = ['All', 'In use', 'Unused'];
 const fmtDate = (d) => (d ? new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
+
+const COLUMNS = [
+  { id: 'color', label: 'Color' },
+  { id: 'usage', label: 'Accounts' },
+  { id: 'created', label: 'Created' },
+];
+const COLS_KEY = 'harbor.tags.columns';
+const DEFAULT_COLS = { color: true, usage: true, created: true };
+const readCols = () => { try { return { ...DEFAULT_COLS, ...JSON.parse(localStorage.getItem(COLS_KEY) || '{}') }; } catch { return DEFAULT_COLS; } };
+
+/** Colour dot from tag data (inline style is fine — it's user data, not a theme colour). */
+const Swatch = ({ hex, className }) => <span className={cn('size-3.5 flex-none rounded-full ring-1 ring-inset ring-foreground/10', className)} style={{ backgroundColor: hex }} aria-hidden="true" />;
+
+function SortHead({ label, k, sort, sortBy, className }) {
+  const active = sort.key === k;
+  const Icon = !active ? ArrowUpDown : sort.dir === 'asc' ? ArrowUp : ArrowDown;
+  return (
+    <TableHead className={className} aria-sort={active ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <button type="button" onClick={() => sortBy(k)}
+        className={cn('-ml-2 inline-flex h-7 items-center gap-1.5 rounded-md px-2 transition-colors hover:bg-accent hover:text-foreground', active && 'text-foreground')}>
+        {label}<Icon className={cn('size-3.5', !active && 'opacity-50')} />
+      </button>
+    </TableHead>
+  );
+}
 
 export default function Tags() {
+  const navigate = useNavigate();
   const { tags, tagUsage, recolorTags, deleteTags } = useData();
   const [q, setQ] = useState('');
   const [colors, setColors] = useState([]);     // hex values
   const [usage, setUsage] = useState('All');
   const [sort, setSort] = useState({ key: 'label', dir: 'asc' });
+  const [cols, setCols] = useState(readCols);
   const [drawer, setDrawer] = useState(null);   // { tag: null } = new, { tag } = edit
   const [confirm, setConfirm] = useState(null); // array of tags to delete
-  const [toast, setToast] = useState('');
-  const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2600); };
+
+  useEffect(() => { try { localStorage.setItem(COLS_KEY, JSON.stringify(cols)); } catch {} }, [cols]);
 
   const selection = useSelection();
   const [selectedOnly, setSelectedOnly] = useState(false);
@@ -48,135 +86,165 @@ export default function Tags() {
 
   const paging = usePagination(filtered, { initialSize: 10, storageKey: 'tags' });
   const { pageItems: rows, setPage } = paging;
+  const pageIds = rows.map((t) => t.value);
   const selectedTags = tags.filter((t) => selection.has(t.value));
-  const filtersOn = q || colors.length || usage !== 'All';
+  const filtersOn = !!(q || colors.length || usage !== 'All');
   const reset = () => { setQ(''); setColors([]); setUsage('All'); setSelectedOnly(false); setPage(1); };
 
-  const toggleColor = (hex) => { setColors((c) => (c.includes(hex) ? c.filter((x) => x !== hex) : [...c, hex])); setPage(1); };
   const sortBy = (key) => setSort((s) => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }));
-  const SortIcon = ({ k }) => (sort.key !== k ? null : sort.dir === 'asc' ? <FiArrowUp aria-hidden="true" /> : <FiArrowDown aria-hidden="true" />);
-  const ariaSort = (k) => (sort.key === k ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none');
+  const colorFacets = useMemo(() => colorsInUse.map((hex) => ({
+    value: hex, label: `${colorName(hex)} ${hex}`, count: tags.filter((t) => t.color.toUpperCase() === hex).length,
+    render: () => <span className="flex items-center gap-2"><Swatch hex={hex} />{colorName(hex)}<span className="font-mono text-[11px] text-muted-foreground">{hex}</span></span>,
+  })), [colorsInUse, tags]);
 
   const doDelete = () => {
     const ids = confirm.map((t) => t.value);
+    const name = confirm.length === 1 ? `“${confirm[0].label}”` : plural(ids.length, 'tag');
     deleteTags(ids);
     selection.setMany(ids, false);
     setConfirm(null); setDrawer(null);
-    notify(`Deleted ${ids.length} tag${ids.length > 1 ? 's' : ''}`);
+    toast(`Deleted ${name}`);
+  };
+  const recolor = (hex) => {
+    if (!hex) return;
+    recolorTags([...selection.ids], hex);
+    toast.success(`Changed color of ${plural(selection.count, 'tag')} to ${colorName(hex)}`);
+  };
+  const exportRows = (list, name) => {
+    downloadCsv(name, [['Name', 'Color', 'Accounts', 'Created', 'Description'], ...list.map((t) => [t.label, t.color, used(t), t.createdAt, t.description || ''])]);
+    toast.success(`Exported ${plural(list.length, 'tag')}`, { description: name });
   };
   const affected = confirm ? confirm.reduce((n, t) => n + used(t), 0) : 0;
 
-  return (
-    <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <div className="text-sm text-muted">Templates / Tags</div>
-          <h1 className="mt-1 text-3xl font-bold">Tags</h1>
-          <p className="mt-1 text-muted">Labels your team uses to group and filter accounts.</p>
-        </div>
-        <button className="btn-primary" onClick={() => setDrawer({ tag: null })}>+ New tag</button>
-      </header>
+  const inUse = tags.filter((t) => used(t) > 0).length;
+  const unused = tags.length - inUse;
+  const toggleUsage = (v) => { setUsage((u) => (u === v ? 'All' : v)); setPage(1); };
+  const visibleCount = 2 + COLUMNS.filter((c) => cols[c.id]).length + 1;
 
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-        {[['Total tags', tags.length], ['In use', tags.filter((t) => used(t) > 0).length], ['Unused', tags.filter((t) => used(t) === 0).length]].map(([l, n]) => (
-          <div key={l} className="card p-4 sm:p-5"><div className="text-sm text-muted">{l}</div><div className="mt-1.5 text-2xl font-bold">{n}</div></div>
-        ))}
+  return (
+    <div className="page">
+      <PageHeader
+        title="Tags"
+        description="Labels your team uses to group and filter accounts."
+        actions={<>
+          <Button variant="outline" onClick={() => exportRows(filtered, 'tags.csv')} disabled={!filtered.length}><Download />Export</Button>
+          <Button onClick={() => setDrawer({ tag: null })}><Plus />New tag</Button>
+        </>}
+      />
+
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-3 lg:gap-4">
+        <StatCard label="Total tags" value={tags.length} icon={TagsIcon} hint={`${colorsInUse.length} color${colorsInUse.length === 1 ? '' : 's'} in use`} />
+        <StatCard label="In use" value={inUse} icon={Building2} tone="success"
+          hint={usage === 'In use' ? 'Showing only these · click to clear' : 'Click to show only these'} onClick={() => toggleUsage('In use')} active={usage === 'In use'} />
+        <StatCard label="Unused" value={unused} icon={CircleDashed} tone={unused ? 'warning' : 'default'}
+          hint={usage === 'Unused' ? 'Showing only these · click to clear' : 'Click to show only these'} onClick={() => toggleUsage('Unused')} active={usage === 'Unused'} />
       </div>
 
-      <section className="card overflow-hidden">
-        {/* Filters */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
-          <label className="flex min-h-[42px] flex-[1_1_220px] items-center gap-2 rounded border border-line-strong px-3 focus-within:border-brand-600">
-            <FiSearch size={18} className="text-muted" aria-hidden="true" /><span className="sr-only">Search tags</span>
-            <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search tags" className="min-w-0 flex-1 bg-transparent outline-none" />
-          </label>
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filter by color">
-            <span className="text-sm text-muted">Color</span>
-            {colorsInUse.map((hex) => {
-              const on = colors.includes(hex);
+      <DataCard
+        toolbar={<>
+          <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} placeholder="Search tags" className="h-8 w-full sm:w-64" />
+          <FacetFilter title="Color" icon={Palette} options={colorFacets} value={colors} onChange={(v) => { setColors(v); setPage(1); }} searchPlaceholder="Filter colors…" />
+          <Segmented label="Usage" size="sm" options={USAGE} value={usage} onChange={(v) => { setUsage(v); setPage(1); }} />
+          {filtersOn && <Button variant="ghost" size="sm" onClick={reset} className="text-muted-foreground">Reset<X /></Button>}
+          <div className="ml-auto flex items-center gap-2">
+            <span className="hidden text-sm text-muted-foreground md:inline">{filtered.length} of {tags.length}</span>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild><Button variant="outline" size="sm"><Settings2 />View</Button></DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuLabel>Toggle columns</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                {COLUMNS.map((c) => (
+                  <DropdownMenuCheckboxItem key={c.id} checked={cols[c.id]} onSelect={(e) => e.preventDefault()}
+                    onCheckedChange={(v) => setCols((p) => ({ ...p, [c.id]: !!v }))}>{c.label}</DropdownMenuCheckboxItem>
+                ))}
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        </>}
+        footer={filtered.length > 0 && <Pagination {...paging} label="tags" />}
+      >
+        <Table className="min-w-[760px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10"><HeaderCheckbox selection={selection} pageIds={pageIds} /></TableHead>
+              <SortHead label="Tag" k="label" sort={sort} sortBy={sortBy} />
+              {cols.color && <TableHead>Color</TableHead>}
+              {cols.usage && <SortHead label="Accounts" k="usage" sort={sort} sortBy={sortBy} />}
+              {cols.created && <SortHead label="Created" k="created" sort={sort} sortBy={sortBy} />}
+              <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((t) => {
+              const checked = selection.has(t.value);
+              const n = used(t);
               return (
-                <button key={hex} type="button" aria-pressed={on} aria-label={`${colorName(hex)} ${hex}`} title={`${colorName(hex)} ${hex}`} onClick={() => toggleColor(hex)}
-                  className={cx('h-7 w-7 rounded-full', on ? 'ring-2 ring-ink ring-offset-2' : 'ring-1 ring-black/10 hover:scale-110')} style={{ backgroundColor: hex }} />
+                <TableRow key={t.value} data-state={checked ? 'selected' : undefined}>
+                  <TableCell><SelectCheckbox label={`Select ${t.label}`} checked={checked} onChange={() => selection.toggle(t.value)} /></TableCell>
+                  <TableCell>
+                    <button type="button" onClick={() => setDrawer({ tag: t })} aria-label={`Edit ${t.label}`}
+                      className="rounded-md transition-opacity hover:opacity-80 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+                      <TagChip tag={t} />
+                    </button>
+                    {t.description && <div className="mt-1 max-w-[300px] truncate text-xs text-muted-foreground">{t.description}</div>}
+                  </TableCell>
+                  {cols.color && (
+                    <TableCell>
+                      <span className="inline-flex items-center gap-2 text-sm">
+                        <Swatch hex={t.color} />
+                        <span>{colorName(t.color)}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{t.color.toUpperCase()}</span>
+                      </span>
+                    </TableCell>
+                  )}
+                  {cols.usage && (
+                    <TableCell>
+                      {n > 0
+                        ? <Link to={`${ACCOUNTS_PATH}?tag=${encodeURIComponent(t.value)}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-foreground underline-offset-4 hover:text-primary hover:underline">
+                            <Building2 className="size-3.5 text-muted-foreground" aria-hidden="true" />{plural(n, 'account')}
+                          </Link>
+                        : <span className="text-sm text-muted-foreground/70">Unused</span>}
+                    </TableCell>
+                  )}
+                  {cols.created && <TableCell className="whitespace-nowrap text-muted-foreground">{fmtDate(t.createdAt)}</TableCell>}
+                  <TableCell className="text-right">
+                    <RowActionsMenu label={t.label}
+                      onEdit={() => setDrawer({ tag: t })}
+                      extra={n > 0 ? [{ label: 'View accounts', icon: Building2, onClick: () => navigate(`${ACCOUNTS_PATH}?tag=${encodeURIComponent(t.value)}`) }] : []}
+                      onDelete={() => setConfirm([t])} />
+                  </TableCell>
+                </TableRow>
               );
             })}
-          </div>
-          <Segmented label="Usage" options={USAGE} value={usage} onChange={(v) => { setUsage(v); setPage(1); }} />
-          {filtersOn ? <button onClick={reset} className="btn-link px-2">Clear filters</button> : null}
-        </div>
+            {filtered.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={visibleCount}>
+                  {tags.length === 0 ? (
+                    <EmptyState icon={Tag} title="No tags yet" description="Create a tag to start grouping and filtering accounts."
+                      action={<Button onClick={() => setDrawer({ tag: null })}><Plus />New tag</Button>} />
+                  ) : (
+                    <EmptyState icon={SearchX} title="No tags match" description="Try a different search or remove some filters."
+                      action={<Button variant="outline" onClick={reset}>Clear filters</Button>} />
+                  )}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </DataCard>
 
-        <BulkBar
-          count={selection.count}
-          total={filtered.length}
-          onSelectAll={() => selection.setMany(filtered.map((t) => t.value), true)}
-          onClear={selection.clear}
-          filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-          actions={<>
-            <BarSelect label="Set color" value="" onChange={(hex) => { if (!hex) return; recolorTags([...selection.ids], hex); notify(`Changed color of ${selection.count} tag${selection.count > 1 ? 's' : ''} to ${colorName(hex)}`); }}
-              options={[{ value: '', label: 'Choose…' }, ...TAG_PALETTE.map((p) => ({ value: p.hex, label: p.name }))]} />
-            <button className={barButton} onClick={() => { downloadCsv('tags-selected.csv', [['Name', 'Color', 'Accounts', 'Created', 'Description'], ...selectedTags.map((t) => [t.label, t.color, used(t), t.createdAt, t.description || ''])]); notify(`Exported ${selectedTags.length} tags`); }}>
-              <FiDownload aria-hidden="true" /> Export</button>
-            <button className={barDanger} onClick={() => setConfirm(selectedTags)}><FiTrash2 aria-hidden="true" /> Delete</button>
-          </>}
-        />
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] border-collapse">
-            <thead>
-              <tr className="bg-subtle text-left text-xs uppercase tracking-wide text-muted">
-                <th className="w-12 py-3 pl-5 pr-1"><HeaderCheckbox selection={selection} pageIds={rows.map((t) => t.value)} /></th>
-                <th className="px-3 py-3 font-semibold" aria-sort={ariaSort('label')}><button onClick={() => sortBy('label')} className="inline-flex items-center gap-1 uppercase hover:text-ink">Tag <SortIcon k="label" /></button></th>
-                <th className="px-3 py-3 font-semibold">Color</th>
-                <th className="px-3 py-3 font-semibold" aria-sort={ariaSort('usage')}><button onClick={() => sortBy('usage')} className="inline-flex items-center gap-1 uppercase hover:text-ink">Accounts <SortIcon k="usage" /></button></th>
-                <th className="px-3 py-3 font-semibold" aria-sort={ariaSort('created')}><button onClick={() => sortBy('created')} className="inline-flex items-center gap-1 uppercase hover:text-ink">Created <SortIcon k="created" /></button></th>
-                <th className="px-5 py-3 text-right font-semibold"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((t) => {
-                const checked = selection.has(t.value);
-                const n = used(t);
-                return (
-                  <tr key={t.value} aria-selected={checked} className={cx('border-t border-line-soft', checked ? 'bg-brand-50' : 'hover:bg-subtle/60')}>
-                    <td className="py-3 pl-5 pr-1"><SelectCheckbox label={`Select ${t.label}`} checked={checked} onChange={() => selection.toggle(t.value)} /></td>
-                    <td className="px-3 py-3">
-                      <TagChip tag={t} />
-                      {t.description && <div className="mt-1 max-w-[260px] truncate text-sm text-muted">{t.description}</div>}
-                    </td>
-                    <td className="px-3 py-3">
-                      <span className="inline-flex items-center gap-2"><span className="h-4 w-4 rounded-full ring-1 ring-black/10" style={{ backgroundColor: t.color }} aria-hidden="true" />
-                        <span>{colorName(t.color)}</span><span className="font-mono text-sm text-muted">{t.color.toUpperCase()}</span></span>
-                    </td>
-                    <td className="px-3 py-3">
-                      {n > 0 ? <Link to={`${ACCOUNTS_PATH}?tag=${encodeURIComponent(t.value)}`} className="font-semibold text-brand-600 hover:underline">{n} account{n > 1 ? 's' : ''}</Link>
-                        : <span className="text-muted">Unused</span>}
-                    </td>
-                    <td className="px-3 py-3 text-muted">{fmtDate(t.createdAt)}</td>
-                    <td className="px-5 py-3">
-                      <div className="flex justify-end gap-1">
-                        {/* <button onClick={() => setDrawer({ tag: t })} aria-label={`Edit ${t.label}`} className="flex h-9 w-9 items-center justify-center rounded text-muted hover:bg-subtle hover:text-ink"><FiEdit2 aria-hidden="true" /></button>
-                        <button onClick={() => setConfirm([t])} aria-label={`Delete ${t.label}`} className="flex h-9 w-9 items-center justify-center rounded text-danger-700 hover:bg-danger-50"><FiTrash2 aria-hidden="true" /></button> */}
-                     
-                      <RowActionsMenu
-                        label={t.label}
-                        onEdit={() => setDrawer({ tag: t })}
-                        onDelete={() => setConfirm([t])}
-                      />
-                      </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="flex flex-col items-center gap-3 p-12 text-center text-muted">
-              {tags.length ? 'No tags match these filters.' : 'No tags yet. Create one to start grouping accounts.'}
-              {tags.length ? <button onClick={reset} className="btn-secondary">Clear filters</button> : <button onClick={() => setDrawer({ tag: null })} className="btn-primary">+ New tag</button>}
-            </div>
-          )}
-        </div>
-        <Pagination {...paging} label="tags" />
-      </section>
+      <BulkBar
+        count={selection.count}
+        total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((t) => t.value), true)}
+        onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <BarSelect label="Set color" value="" onChange={recolor} options={TAG_PALETTE.map((p) => ({ value: p.hex, label: p.name }))} />
+          <button type="button" className={barButton} onClick={() => exportRows(selectedTags, 'tags-selected.csv')}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirm(selectedTags)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
 
       {drawer && (
         <TagDrawer
@@ -184,21 +252,21 @@ export default function Tags() {
           tag={drawer.tag}
           usage={drawer.tag ? used(drawer.tag) : 0}
           onClose={() => setDrawer(null)}
-          onSaved={(tag, isNew) => { setDrawer(null); notify(isNew ? `Created “${tag.label}”` : `Saved “${tag.label}”`); }}
+          onSaved={(tag, isNew) => { setDrawer(null); toast.success(isNew ? `Created “${tag.label}”` : `Saved “${tag.label}”`); }}
           onDelete={(tag) => setConfirm([tag])}
         />
       )}
 
       {confirm && (
         <Modal title={confirm.length === 1 ? `Delete “${confirm[0].label}”?` : `Delete ${confirm.length} tags?`} onClose={() => setConfirm(null)}
-          footer={<><button className="btn-secondary" onClick={() => setConfirm(null)}>Cancel</button>
-            <button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={doDelete}>Delete {confirm.length === 1 ? 'tag' : 'tags'}</button></>}>
-          <p className="text-muted">{affected > 0 ? `This removes the tag${confirm.length > 1 ? 's' : ''} from ${affected} account${affected > 1 ? 's' : ''}. The accounts themselves are not deleted.` : 'No accounts use this, so nothing else changes.'}</p>
-          <div className="mt-3 flex flex-wrap gap-1.5">{confirm.map((t) => <TagChip key={t.value} tag={t} />)}</div>
+          description={affected > 0
+            ? `This removes the tag${confirm.length > 1 ? 's' : ''} from ${plural(affected, 'account')}. The accounts themselves are not deleted.`
+            : 'No accounts use this, so nothing else changes.'}
+          footer={<><Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={doDelete}><Trash2 />Delete {confirm.length === 1 ? 'tag' : plural(confirm.length, 'tag')}</Button></>}>
+          <div className="flex flex-wrap gap-1.5">{confirm.map((t) => <TagChip key={t.value} tag={t} />)}</div>
         </Modal>
       )}
-
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
     </div>
   );
 }

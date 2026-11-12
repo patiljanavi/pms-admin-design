@@ -1,7 +1,39 @@
 import { useState } from 'react';
-import { FiChevronDown, FiChevronRight, FiFolder, FiHome, FiLock } from 'react-icons/fi';
-import { cx } from '../ui';
+import { ChevronRight, File, FileArchive, FileImage, FileSpreadsheet, FileText, Folder, FolderLock, House } from 'lucide-react';
+import { RadioDot } from '../ui';
 import { findPath } from '../../data/folderTemplates';
+import { cn } from 'lib/utils';
+
+/* ---------- File-type icons (shared by the explorer, tree and upload dialog) ---------- */
+const FILE_TYPES = [
+  { exts: ['pdf'], icon: FileText, tone: 'bg-danger-50 text-danger-700' },
+  { exts: ['doc', 'docx', 'txt', 'rtf', 'odt'], icon: FileText, tone: 'bg-brand-50 text-brand-700' },
+  { exts: ['xls', 'xlsx', 'csv', 'ods', 'numbers'], icon: FileSpreadsheet, tone: 'bg-success-50 text-success-700' },
+  { exts: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'heic', 'svg'], icon: FileImage, tone: 'bg-violet-50 text-violet-700' },
+  { exts: ['zip', 'rar', '7z', 'gz'], icon: FileArchive, tone: 'bg-warning-50 text-warning-700' },
+];
+const typeOf = (name = '') => {
+  const ext = name.includes('.') ? name.split('.').pop().toLowerCase() : '';
+  return FILE_TYPES.find((t) => t.exts.includes(ext)) || { icon: File, tone: 'bg-muted text-muted-foreground' };
+};
+
+/** Coloured file icon picked from the file name's extension. `tile` draws it on a soft square. */
+export function FileTypeIcon({ name, tile = false, className }) {
+  const { icon: Icon, tone } = typeOf(name);
+  if (!tile) return <Icon className={cn('size-4 flex-none', tone.split(' ').find((c) => c.startsWith('text-')), className)} aria-hidden="true" />;
+  return (
+    <span className={cn('inline-flex size-8 flex-none items-center justify-center rounded-md', tone, className)} aria-hidden="true">
+      <Icon className="size-4" />
+    </span>
+  );
+}
+
+/** Folder icon: a lock for default (locked) folders. */
+export function FolderGlyph({ locked, className, label }) {
+  return locked
+    ? <FolderLock className={cn('size-4 flex-none text-muted-foreground', className)} aria-label={label} aria-hidden={label ? undefined : true} />
+    : <Folder className={cn('size-4 flex-none fill-warning-100 text-warning-500', className)} aria-hidden="true" />;
+}
 
 /**
  * Choose a folder (or the top level) from the tree.
@@ -17,6 +49,12 @@ export default function FolderPicker({ items, value, onChange, isDisabled = () =
   });
   const toggle = (id) => setOpen((s) => { const n = new Set(s); if (n.has(id)) n.delete(id); else n.add(id); return n; });
 
+  const optionClass = (on, disabled) => cn(
+    'flex h-8 min-w-0 flex-1 items-center gap-2 rounded-md px-2 text-left text-sm transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+    on ? 'bg-primary/10 font-medium text-foreground' : 'hover:bg-accent',
+    disabled && 'cursor-not-allowed opacity-40 hover:bg-transparent',
+  );
+
   const row = (f, depth) => {
     const kids = f.children.filter((c) => c.type === 'folder');
     const disabled = isDisabled(f);
@@ -24,13 +62,14 @@ export default function FolderPicker({ items, value, onChange, isDisabled = () =
     const on = value === f.id;
     return (
       <li key={f.id}>
-        <div className="flex items-center" style={{ paddingLeft: depth * 18 }}>
+        <div className="flex items-center" style={{ paddingLeft: depth * 16 }}>
           <button type="button" aria-label={`${isOpen ? 'Collapse' : 'Expand'} ${f.name}`} disabled={!kids.length || disabled} onClick={() => toggle(f.id)}
-            className={cx('flex h-8 w-6 flex-none items-center justify-center text-muted', (!kids.length || disabled) && 'invisible')}>{isOpen ? <FiChevronDown /> : <FiChevronRight />}</button>
-          <button type="button" role="radio" aria-checked={on} disabled={disabled} onClick={() => onChange(f.id)}
-            className={cx('flex min-h-[34px] min-w-0 flex-1 items-center gap-2 rounded px-2 text-left text-sm', on ? 'bg-brand-50 font-semibold text-brand-800 ring-1 ring-brand-600' : 'hover:bg-subtle', disabled && 'cursor-not-allowed opacity-40')}>
-            <span className={cx('h-3.5 w-3.5 flex-none rounded-full border-2', on ? 'border-brand-600 bg-brand-600 shadow-[inset_0_0_0_2px_white]' : 'border-line-strong')} aria-hidden="true" />
-            {f.locked ? <FiLock className="flex-none text-muted" aria-hidden="true" /> : <FiFolder className="flex-none text-warning-700" aria-hidden="true" />}
+            className={cn('inline-flex size-6 flex-none items-center justify-center rounded text-muted-foreground hover:bg-accent hover:text-foreground', (!kids.length || disabled) && 'invisible')}>
+            <ChevronRight className={cn('size-3.5 transition-transform', isOpen && 'rotate-90')} />
+          </button>
+          <button type="button" role="radio" aria-checked={on} disabled={disabled} onClick={() => onChange(f.id)} className={optionClass(on, disabled)}>
+            <RadioDot on={on} />
+            <FolderGlyph locked={f.locked} />
             <span className="truncate">{f.name}</span>
           </button>
         </div>
@@ -40,13 +79,15 @@ export default function FolderPicker({ items, value, onChange, isDisabled = () =
   };
 
   return (
-    <div role="radiogroup" aria-label={label} className={cx('overflow-y-auto rounded-md border border-line p-2', maxHeight)}>
+    <div role="radiogroup" aria-label={label} className={cn('overflow-y-auto rounded-lg border bg-card p-1.5', maxHeight)}>
       {showRoot && (
-        <button type="button" role="radio" aria-checked={value === null} onClick={() => onChange(null)}
-          className={cx('flex min-h-[34px] w-full items-center gap-2 rounded px-2 text-left text-sm', value === null ? 'bg-brand-50 font-semibold text-brand-800 ring-1 ring-brand-600' : 'hover:bg-subtle')}>
-          <span className={cx('h-3.5 w-3.5 flex-none rounded-full border-2', value === null ? 'border-brand-600 bg-brand-600 shadow-[inset_0_0_0_2px_white]' : 'border-line-strong')} aria-hidden="true" />
-          <FiHome aria-hidden="true" /> Top level
-        </button>
+        <div className="flex items-center">
+          <span className="size-6 flex-none" aria-hidden="true" />
+          <button type="button" role="radio" aria-checked={value === null} onClick={() => onChange(null)} className={optionClass(value === null, false)}>
+            <RadioDot on={value === null} />
+            <House className="size-4 flex-none text-muted-foreground" aria-hidden="true" />Top level
+          </button>
+        </div>
       )}
       <ul>{items.filter((n) => n.type === 'folder').map((f) => row(f, 0))}</ul>
     </div>

@@ -1,12 +1,17 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation, useNavigate, useOutletContext, useParams } from 'react-router-dom';
-import { FiArrowLeft } from 'react-icons/fi';
+import { ArrowLeft, FileX2, Trash2 } from 'lucide-react';
 import AccountGeneralStep from '../../components/Proposal/AccountGeneralStep';
 import ProposalWizard from '../../components/Proposal/ProposalWizard';
 import { Modal } from '../../components/ui';
+import { Badge } from '../../components/ui/badge';
+import { Button } from '../../components/ui/button';
+import { SimpleTooltip } from '../../components/ui/tooltip';
+import { EmptyState } from '../../components/page';
 import { useData } from '../../context/DataContext';
 import { accountTabPath } from '../../config';
-import { demoProposals, emptyAccountProposal, newProposalId, proposalDisplayName, validateAccountProposalStep } from '../../data/accountProposals';
+import { PROPOSAL_STATUS, demoProposals, emptyAccountProposal, newProposalId, proposalDisplayName, validateAccountProposalStep } from '../../data/accountProposals';
+import { ToastBridge } from '../../components/ui/sonner';
 
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
@@ -53,9 +58,9 @@ function ProposalPage({ account, proposalId }) {
 
   if (proposalId && !existing) {
     return (
-      <div className="card flex flex-col items-start gap-4 p-6">
-        <h2 className="text-2xl font-bold">Proposal not found</h2>
-        <Link to={back} className="btn-primary">Back to proposals</Link>
+      <div className="rounded-xl border bg-card shadow-card">
+        <EmptyState icon={FileX2} title="Proposal not found" description="It may have been deleted, or moved to another account."
+          action={<Button asChild><Link to={back}><ArrowLeft />Back to proposals</Link></Button>} />
       </div>
     );
   }
@@ -97,22 +102,28 @@ function ProposalPage({ account, proposalId }) {
         saveLabel={isEditing ? 'Update' : 'Save draft'} submitLabel={existing?.status === 'sent' || existing?.status === 'signed' ? 'Update & send' : 'Send proposal'}
         renderGeneral={(props) => <AccountGeneralStep {...props} setFormData={setFormData} />}
         renderHeader={({ step, total, name }) => (
-          <div className="flex items-center gap-3">
-            <button onClick={onCancel} aria-label="Back to proposals" className="flex h-10 w-10 flex-none items-center justify-center rounded border border-line-strong bg-surface hover:bg-subtle"><FiArrowLeft size={18} /></button>
-            <div className="min-w-0">
-              <h2 className="truncate text-xl font-bold">{isEditing ? `Edit proposal: ${proposalDisplayName(saved, account)}` : 'Create proposal'}</h2>
-              <p className="text-sm text-muted">Step {step} of {total} · {name}</p>
+          <div className="flex items-start gap-3">
+            <SimpleTooltip label="Back to proposals">
+              <Button variant="ghost" size="icon-sm" onClick={onCancel} aria-label="Back to proposals" className="-ml-1 mt-0.5 text-muted-foreground"><ArrowLeft /></Button>
+            </SimpleTooltip>
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <h2 className="truncate text-2xl font-semibold tracking-tight">{isEditing ? proposalDisplayName(saved, account) : 'New proposal'}</h2>
+                {isEditing && <Badge variant={{ draft: 'neutral', sent: 'info', signed: 'success' }[existing.status] || 'neutral'} dot>{(PROPOSAL_STATUS[existing.status] || PROPOSAL_STATUS.draft).label}</Badge>}
+              </div>
+              <p className="mt-0.5 text-sm text-muted-foreground">{isEditing ? 'Edit proposal' : `For ${account.name}`} · Step {step} of {total} · <span className="font-medium text-foreground">{name}</span></p>
             </div>
           </div>
         )} />
 
       {modal === 'discard' && (
         <Modal title="Discard changes?" onClose={() => setModal(null)}
-          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Keep editing</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={() => navigate(back)}>Discard</button></>}>
-          <p className="text-muted">Your changes to this proposal haven't been saved.</p>
+          description="Your changes to this proposal haven't been saved."
+          footer={<><Button variant="outline" onClick={() => setModal(null)}>Keep editing</Button><Button variant="destructive" onClick={() => navigate(back)}><Trash2 />Discard changes</Button></>}>
+          <p className="text-sm text-muted-foreground">If you leave now, everything since your last save is lost.</p>
         </Modal>
       )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
+      <ToastBridge message={toast} />
     </div>
   );
 }

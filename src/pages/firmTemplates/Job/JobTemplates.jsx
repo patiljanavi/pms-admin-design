@@ -1,19 +1,36 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { FiCopy, FiDownload,  FiSearch, FiTrash2 } from 'react-icons/fi';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
+import { AlertTriangle, Briefcase, Copy, Download, Eye, MessageSquare, Plus, SearchX, Trash2, X } from 'lucide-react';
 import Pagination, { usePagination } from '../../../components/Pagination';
 import { htmlToText } from '../../../components/TextEditor';
 import {
-  BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection,
+  BarSelect, BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter, barButton, barDanger, downloadCsv, useSelection,
 } from '../../../components/TableSelection';
-import {  Modal, cx,  } from '../../../components/ui';
-import { useData } from '../../../context/DataContext';
-import {  TASK_PRIORITIES, describeDates } from '../../../data/taskTemplates';
-import { statusOptionsFrom } from './Jobtemplateform';
+import { Modal } from '../../../components/ui';
+import { Button } from '../../../components/ui/button';
+import { ToastBridge } from '../../../components/ui/sonner';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
+import { DataCard, EmptyState, SearchInput, StatCard } from '../../../components/page';
 import RowActionsMenu from '../../../components/RowActionsMenu';
+import { useData } from '../../../context/DataContext';
+import { TASK_PRIORITIES, describeDates } from '../../../data/taskTemplates';
+import { statusOptionsFrom } from './Jobtemplateform';
 
 const LIST_PATH = '/firmtemp/templates/jobs';
+const plural = (n, w) => `${n} ${w}${n === 1 ? '' : 's'}`;
 
+/** Title row for a tab inside the Firm Templates layout (the layout owns the page h1). */
+function ListHeader({ title, description, action }) {
+  return (
+    <div className="flex flex-wrap items-end justify-between gap-x-6 gap-y-3">
+      <div className="min-w-0">
+        <h2 className="text-lg font-semibold tracking-tight text-foreground">{title}</h2>
+        {description && <p className="mt-0.5 text-sm text-muted-foreground">{description}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
 
 /** Firm Templates → Jobs: table of job templates. New / Edit open JobTemplateForm (same as Tasks and Emails). */
 export default function JobTemplates() {
@@ -55,7 +72,13 @@ export default function JobTemplates() {
   const filtersOn = q || priority !== 'All' || portal !== 'All';
   const reset = () => { setQ(''); setPriority('All'); setPortal('All'); setSelectedOnly(false); setPage(1); };
 
-  if (!duplicateJobTemplates) return <div role="alert" className="card bg-danger-50 p-6 font-semibold text-danger-700">Job templates are not set up in DataContext.js</div>;
+  if (!duplicateJobTemplates) {
+    return (
+      <div role="alert" className="flex items-center gap-3 rounded-xl border border-danger-100 bg-danger-50 p-5 text-sm font-medium text-danger-700">
+        <AlertTriangle className="size-4 flex-none" aria-hidden="true" />Job templates are not set up in DataContext.js
+      </div>
+    );
+  }
 
   const remove = () => {
     const ids = confirm.map((t) => t.id);
@@ -69,115 +92,115 @@ export default function JobTemplates() {
     notify(`Exported ${items.length} templates`);
   };
 
-  const stats = [
-    ['Total templates', jobTemplates.length],
-    ['Shown in client portal', jobTemplates.filter((t) => t.clientFacingStatus).length],
-    ['High or urgent', jobTemplates.filter((t) => ['High', 'Urgent'].includes(t.priority)).length],
-    ['With comments', jobTemplates.filter((t) => t.comments?.length).length],
-  ];
+  const shown = jobTemplates.filter((t) => t.clientFacingStatus).length;
+  const urgent = jobTemplates.filter((t) => ['High', 'Urgent'].includes(t.priority)).length;
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h2 className="text-2xl font-bold">Job templates</h2>
-          <p className="text-muted">Jobs with assignees, dates and what clients see in their portal.</p>
-        </div>
-        <button className="btn-primary" onClick={openNew}>+ New job template</button>
+      <ListHeader title="Job templates" description="Jobs with assignees, dates and what clients see in their portal."
+        action={<Button onClick={openNew}><Plus />New job template</Button>} />
+
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <StatCard label="Total templates" value={jobTemplates.length} icon={Briefcase} />
+        <StatCard label="Shown in client portal" value={shown} icon={Eye} tone="brand"
+          hint={portal === 'Shown' ? 'Showing only these · click to clear' : 'Click to show only these'}
+          onClick={() => { setPortal((p) => (p === 'Shown' ? 'All' : 'Shown')); setPage(1); }} active={portal === 'Shown'} />
+        <StatCard label="High or urgent" value={urgent} icon={AlertTriangle} tone={urgent ? 'warning' : 'default'} />
+        <StatCard label="With comments" value={jobTemplates.filter((t) => t.comments?.length).length} icon={MessageSquare} />
       </div>
 
-      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        {stats.map(([label, n]) => (
-          <div key={label} className="card p-4 sm:p-5"><div className="text-sm text-muted">{label}</div><div className="mt-1.5 text-2xl font-bold">{n}</div></div>
-        ))}
-      </div>
-
-      <section className="card overflow-hidden">
-        <div className="flex flex-wrap items-center gap-3 border-b border-line px-4 py-4 sm:px-5">
-          <label className="flex min-h-[44px] flex-[1_1_240px] items-center gap-2 rounded border border-line-strong px-3 focus-within:border-brand-600">
-            <FiSearch size={18} className="text-muted" aria-hidden="true" /><span className="sr-only">Search job templates</span>
-            <input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search name, job name, assignee" className="min-w-0 flex-1 bg-transparent outline-none" />
-          </label>
-          <label className="flex items-center gap-2 text-muted">Priority
-            <select value={priority} onChange={(e) => { setPriority(e.target.value); setPage(1); }} className="input min-h-[44px] w-auto">
-              {['All', ...TASK_PRIORITIES].map((o) => <option key={o}>{o}</option>)}
-            </select>
-          </label>
-          <label className="flex items-center gap-2 text-muted">Client portal
-            <select value={portal} onChange={(e) => { setPortal(e.target.value); setPage(1); }} className="input min-h-[44px] w-auto">
-              {['All', 'Shown', 'Hidden'].map((o) => <option key={o}>{o}</option>)}
-            </select>
-          </label>
-          {filtersOn ? <button onClick={reset} className="btn-link px-2">Clear filters</button> : null}
-        </div>
-
-        <BulkBar count={selection.count} total={filtered.length}
-          onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
-          filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-          actions={<>
-            <button className={barButton} onClick={() => { duplicateJobTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><FiCopy aria-hidden="true" /> Duplicate</button>
-            <button className={barButton} onClick={() => exportCsv(selected)}><FiDownload aria-hidden="true" /> Export</button>
-            <button className={barDanger} onClick={() => setConfirm(selected)}><FiTrash2 aria-hidden="true" /> Delete</button>
-          </>}
-        />
-
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[1040px] border-collapse">
-            <thead>
-              <tr className="bg-subtle text-left text-xs uppercase tracking-wide text-muted">
-                <th className="w-12 py-3 pl-5 pr-1"><HeaderCheckbox selection={selection} pageIds={rows.map((t) => t.id)} /></th>
-                <th className="px-3 py-3 font-semibold">Template name</th>
-                
-                <th className="px-5 py-3 text-right font-semibold"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
-              {rows.map((t) => {
-                const checked = selection.has(t.id);
-                // const st = t.clientFacingStatus ? statusById.get(String(t.selectedJob)) : null;
-                return (
-                  <tr key={t.id} aria-selected={checked} className={cx('border-t border-line-soft', checked ? 'bg-brand-50' : 'hover:bg-subtle/60')}>
-                    <td className="py-3 pl-5 pr-1"><SelectCheckbox label={`Select ${t.templatename}`} checked={checked} onChange={() => selection.toggle(t.id)} /></td>
-                    <td className="max-w-[280px] px-3 py-3">
-                      <button onClick={() => openEdit(t)} className="text-left font-semibold hover:text-brand-600 hover:underline">{t.templatename}</button>
-                      <div className="truncate font-mono text-xs text-muted">{t.jobName}</div>
-                    </td>
-                    
-                    <td className="px-5 py-3">
-                      <div className="flex justify-end gap-1">
-                        {/* <button onClick={() => openEdit(t)} aria-label={`Edit ${t.templatename}`} className="flex h-9 w-9 items-center justify-center rounded text-muted hover:bg-subtle hover:text-ink"><FiEdit2 aria-hidden="true" /></button>
-                        <button onClick={() => { duplicateJobTemplates([t.id]); notify(`Duplicated “${t.templatename}”`); }} aria-label={`Duplicate ${t.templatename}`} className="flex h-9 w-9 items-center justify-center rounded text-muted hover:bg-subtle hover:text-ink"><FiCopy aria-hidden="true" /></button>
-                        <button onClick={() => setConfirm([t])} aria-label={`Delete ${t.templatename}`} className="flex h-9 w-9 items-center justify-center rounded text-danger-700 hover:bg-danger-50"><FiTrash2 aria-hidden="true" /></button> */}
-                      <RowActionsMenu
-                        label={t.templatename}
-                        onEdit={() => openEdit(t)}
-                        onDuplicate={() => { duplicateJobTemplates([t.id]); notify(`Duplicated “${t.templatename}”`); }}
-                        onDelete={() => setConfirm([t])}
-                      />
+      <DataCard
+        toolbar={<>
+          <SearchInput value={q} onChange={(v) => { setQ(v); setPage(1); }} label="Search job templates"
+            placeholder="Search name, job name, assignee" className="h-8 w-full sm:w-72" />
+          <BarSelect label="Priority" value={priority} onChange={(v) => { setPriority(v); setPage(1); }} options={['All', ...TASK_PRIORITIES]} />
+          <BarSelect label="Client portal" value={portal} onChange={(v) => { setPortal(v); setPage(1); }} options={['All', 'Shown', 'Hidden']} />
+          {filtersOn ? <Button variant="ghost" size="sm" onClick={reset} className="text-muted-foreground">Reset<X /></Button> : null}
+          <span className="ml-auto hidden text-sm tabular-nums text-muted-foreground md:inline">{filtered.length} of {jobTemplates.length}</span>
+        </>}
+        footer={filtered.length > 0 && <Pagination {...paging} label="templates" />}
+      >
+        <Table className="min-w-[560px]">
+          <TableHeader>
+            <TableRow>
+              <TableHead className="w-10"><HeaderCheckbox selection={selection} pageIds={rows.map((t) => t.id)} /></TableHead>
+              <TableHead>Template name</TableHead>
+              <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((t) => {
+              const checked = selection.has(t.id);
+              return (
+                <TableRow key={t.id} data-state={checked ? 'selected' : undefined} aria-selected={checked}>
+                  <TableCell><SelectCheckbox label={`Select ${t.templatename}`} checked={checked} onChange={() => selection.toggle(t.id)} /></TableCell>
+                  <TableCell className="max-w-[520px]">
+                    <div className="flex items-center gap-3">
+                      <span className="inline-flex size-8 flex-none items-center justify-center rounded-lg border bg-subtle text-muted-foreground" aria-hidden="true">
+                        <Briefcase className="size-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <Link to={`${LIST_PATH}/${t.id}`} className="block truncate font-medium text-foreground underline-offset-4 hover:underline">{t.templatename}</Link>
+                        {t.jobName && <div className="truncate font-mono text-xs text-muted-foreground">{t.jobName}</div>}
                       </div>
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-          {filtered.length === 0 && (
-            <div className="flex flex-col items-center gap-3 p-12 text-center text-muted">
-              {jobTemplates.length ? 'No job templates match these filters.' : 'No job templates yet.'}
-              {jobTemplates.length ? <button onClick={reset} className="btn-secondary">Clear filters</button> : <button onClick={openNew} className="btn-primary">+ New job template</button>}
-            </div>
-          )}
-        </div>
-        <Pagination {...paging} label="templates" />
-      </section>
+                    </div>
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <RowActionsMenu
+                      label={t.templatename}
+                      onEdit={() => openEdit(t)}
+                      onDuplicate={() => { duplicateJobTemplates([t.id]); notify(`Duplicated “${t.templatename}”`); }}
+                      onDelete={() => setConfirm([t])}
+                    />
+                  </TableCell>
+                </TableRow>
+              );
+            })}
+            {filtered.length === 0 && (
+              <TableRow className="hover:bg-transparent">
+                <TableCell colSpan={3}>
+                  {jobTemplates.length ? (
+                    <EmptyState icon={SearchX} title="No job templates match these filters" description="Try a different search or remove some filters."
+                      action={<Button variant="outline" onClick={reset}>Clear filters</Button>} />
+                  ) : (
+                    <EmptyState icon={Briefcase} title="No job templates yet" description="Create a reusable job with assignees, dates and a client-facing status."
+                      action={<Button onClick={openNew}><Plus />New job template</Button>} />
+                  )}
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      </DataCard>
+
+      <BulkBar count={selection.count} total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <button type="button" className={barButton} onClick={() => { duplicateJobTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
+          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
 
       {confirm && (
-        <Modal title={confirm.length === 1 ? `Delete “${confirm[0].templatename}”?` : `Delete ${confirm.length} templates?`} onClose={() => setConfirm(null)}
-          footer={<><button className="btn-secondary" onClick={() => setConfirm(null)}>Cancel</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={remove}>Delete</button></>}>
-          <p className="text-muted">Jobs already created from {confirm.length === 1 ? 'this template' : 'these templates'} stay as they are.</p>
+        <Modal title={confirm.length === 1 ? `Delete “${confirm[0].templatename}”?` : `Delete ${confirm.length} templates?`}
+          description={`Jobs already created from ${confirm.length === 1 ? 'this template' : 'these templates'} stay as they are.`}
+          onClose={() => setConfirm(null)}
+          footer={<><Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={remove}><Trash2 />{confirm.length > 1 ? `Delete ${plural(confirm.length, 'template')}` : 'Delete'}</Button></>}>
+          <ul className="max-h-48 divide-y overflow-y-auto rounded-lg border">
+            {confirm.map((t) => (
+              <li key={t.id} className="flex items-center gap-2.5 px-3 py-2 text-sm">
+                <Briefcase className="size-4 flex-none text-muted-foreground" aria-hidden="true" />
+                <span className="truncate font-medium">{t.templatename}</span>
+                {t.jobName && <span className="truncate font-mono text-xs text-muted-foreground">{t.jobName}</span>}
+              </li>
+            ))}
+          </ul>
         </Modal>
       )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
+      <ToastBridge message={toast} />
     </div>
   );
 }

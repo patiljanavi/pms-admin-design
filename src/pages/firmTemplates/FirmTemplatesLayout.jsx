@@ -1,39 +1,26 @@
 import { Outlet, useLocation } from 'react-router-dom';
-import TabNav from '../../components/TabNav';
-import {
-  FiBriefcase, FiCheckSquare, FiClipboard,
-  FiFileMinus, FiFileText, FiFlag, FiFolder, FiMail, FiMessageSquare,
-} from 'react-icons/fi';
+import { PageHeader } from '../../components/page';
+import { TooltipProvider } from '../../components/ui/tooltip';
+import { TemplateTypeNav } from './templateKit';
 
-const TABS = [
-  { to: '/firmtemp/templates/tasks', label: 'Tasks', icon: FiCheckSquare },
-  { to: '/firmtemp/templates/emails', label: 'Emails', icon: FiMail },
-  { to: '/firmtemp/templates/clientfacing', label: 'Client-facing Status', icon: FiFlag },
-  { to: '/firmtemp/templates/jobs', label: 'Jobs', icon: FiBriefcase },
-  { to: '/firmtemp/templates/chats', label: 'Chats', icon: FiMessageSquare },
-  { to: '/firmtemp/templates/folders', label: 'Folders', icon: FiFolder },
-  { to: '/firmtemp/templates/invoices', label: 'Invoices', icon: FiFileText },
-  { to: '/firmtemp/templates/proposals', label: 'Proposals & ELs', icon: FiFileMinus },
-  { to: '/firmtemp/templates/organizers', label: 'Organizers', icon: FiClipboard },
-];
-
+/**
+ * Alternate Firm Templates layout (App.js uses FirmTemplatesLayoutold).
+ * Same header and type navigation, but create / edit pages show on their own, without the tabs.
+ */
 export default function FirmTemplatesLayout() {
   const { pathname } = useLocation();
-  const current = TABS.find((t) => pathname.toLowerCase().startsWith(t.to)) || TABS[0];
 
   // Create / edit pages (e.g. /firmtemp/templates/tasks/new) show without the tab bar
   const isFormPage = pathname.split('/').filter(Boolean).length > 3;
-  if (isFormPage) return <Outlet />;
+  if (isFormPage) return <TooltipProvider delayDuration={300}><div className="page"><Outlet /></div></TooltipProvider>;
 
   return (
-    <div className="flex flex-col gap-6">
-      <header>
-        <nav aria-label="Breadcrumb" className="text-sm text-muted">Templates <span aria-hidden="true">/</span> Firm Templates</nav>
-        <h1 className="mt-1 text-3xl font-bold">Firm Templates</h1>
-        <p className="mt-1 max-w-[65ch] text-muted">Reusable tasks, emails, jobs, documents and more for your whole team.</p>
-      </header>
-      <TabNav tabs={TABS} currentTo={current.to} navLabel="Template types" selectLabel="Template type" selectId="template-type" />
-      <Outlet />
-    </div>
+    <TooltipProvider delayDuration={300} skipDelayDuration={150}>
+      <div className="page">
+        <PageHeader title="Firm Templates" description="Reusable tasks, emails, jobs, documents and more for your whole team." />
+        <TemplateTypeNav className="sticky top-[var(--app-header-h,0px)] z-20 -mx-4 bg-canvas/95 px-4 backdrop-blur sm:-mx-6 sm:px-6 lg:-mx-8 lg:px-8" />
+        <Outlet />
+      </div>
+    </TooltipProvider>
   );
 }

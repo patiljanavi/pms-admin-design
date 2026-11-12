@@ -1,14 +1,27 @@
 import { useState } from 'react';
-import { FiChevronRight, FiFile, FiFilePlus, FiFolder, FiFolderPlus, FiFolderMinus, FiLock, FiMove, FiEdit3, FiUpload, FiHome } from 'react-icons/fi';
+import {
+  ChevronRight, FilePlus, FolderOpen, FolderPlus, FolderInput, House, LayoutGrid, List, Lock, PencilLine, Trash2, Upload,
+} from 'lucide-react';
 import RowActionsMenu from '../RowActionsMenu';
-import { Modal, cx } from '../ui';
+import { Modal } from '../ui';
+import { Badge } from '../ui/badge';
+import { Button } from '../ui/button';
+import { SimpleTooltip } from '../ui/tooltip';
+import { ToggleGroup, ToggleGroupItem } from '../ui/toggle-group';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../ui/table';
+import { EmptyState } from '../page';
 import FolderTree from './FolderTree';
 import MoveModal from './MoveModal';
 import NameModal from './NameModal';
 import UploadModal from './UploadModal';
+import { FileTypeIcon, FolderGlyph } from './FolderPicker';
 import {
   childrenOf, countItems, fileKind, fileSize, findNode, findPath, insertInto, moveNode, newFile, newFolder, parentIdOf, removeNode, updateNode,
 } from '../../data/folderTemplates';
+import { ToastBridge } from '../ui/sonner';
+import { cn } from 'lib/utils';
+
+const itemsLabel = (c) => `${c.folders + c.files} item${c.folders + c.files === 1 ? '' : 's'}`;
 
 /**
  * File explorer for a folder template.
@@ -19,6 +32,7 @@ export default function FolderExplorer({ items, onChange }) {
   const [currentId, setCurrentId] = useState(null);           // null = top level
   const [expanded, setExpanded] = useState(() => new Set());
   const [modal, setModal] = useState(null);                   // { kind: 'folder'|'file'|'rename'|'move'|'delete', targetId, nodeId }
+  const [layout, setLayout] = useState('list');               // 'list' | 'grid' (view only)
   const [toast, setToast] = useState('');
   const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2400); };
 
@@ -42,91 +56,123 @@ export default function FolderExplorer({ items, onChange }) {
     notify(`Uploaded ${files.length} file${files.length > 1 ? 's' : ''} to ${where(target)}`);
   };
 
-  const menuFor = (n) => {
+  const menuFor = (n, className) => {
     const extra = [];
     if (n.type === 'folder') {
-      extra.push({ label: 'Open', icon: FiFolder, onClick: () => open(n.id) });
-      extra.push({ label: 'New folder', icon: FiFolderPlus, onClick: () => setModal({ kind: 'folder', targetId: n.id }) });
-      extra.push({ label: 'New file', icon: FiFilePlus, onClick: () => setModal({ kind: 'file', targetId: n.id }) });
-      extra.push({ label: 'Upload file', icon: FiUpload, onClick: () => startUpload(n.id) });
+      extra.push({ label: 'Open', icon: FolderOpen, onClick: () => open(n.id) });
+      extra.push({ label: 'New folder', icon: FolderPlus, onClick: () => setModal({ kind: 'folder', targetId: n.id }) });
+      extra.push({ label: 'New file', icon: FilePlus, onClick: () => setModal({ kind: 'file', targetId: n.id }) });
+      extra.push({ label: 'Upload file', icon: Upload, onClick: () => startUpload(n.id) });
     }
     if (!n.locked) {
-      extra.push({ label: 'Rename', icon: FiEdit3, onClick: () => setModal({ kind: 'rename', nodeId: n.id }) });
-      extra.push({ label: 'Move', icon: FiMove, onClick: () => setModal({ kind: 'move', nodeId: n.id }) });
+      extra.push({ label: 'Rename', icon: PencilLine, onClick: () => setModal({ kind: 'rename', nodeId: n.id }) });
+      extra.push({ label: 'Move', icon: FolderInput, onClick: () => setModal({ kind: 'move', nodeId: n.id }) });
     }
-    return <RowActionsMenu label={n.name} extra={extra} onDelete={n.locked ? undefined : () => setModal({ kind: 'delete', nodeId: n.id })} />;
+    return <RowActionsMenu label={n.name} className={className} extra={extra} onDelete={n.locked ? undefined : () => setModal({ kind: 'delete', nodeId: n.id })} />;
   };
 
   const node = modal?.nodeId ? findNode(items, modal.nodeId) : null;
   const delCount = node?.type === 'folder' ? countItems(node.children) : null;
+  const crumb = (on) => cn('inline-flex h-7 max-w-[200px] items-center gap-1.5 truncate rounded-md px-2 transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+    on ? 'font-medium text-foreground' : 'text-muted-foreground');
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)]">
+    <div className="grid grid-cols-1 lg:grid-cols-[248px_minmax(0,1fr)]">
       {/* Left: folder tree */}
-      <nav aria-label="Folder tree" className="border-b border-line p-3 lg:border-b-0 lg:border-r">
+      <nav aria-label="Folder tree" className="border-b bg-subtle/50 p-2 lg:border-b-0 lg:border-r">
+        <div className="px-2 pb-1.5 pt-1 text-[11px] font-medium uppercase tracking-wider text-muted-foreground">Folders</div>
         <FolderTree items={items} currentId={currentId} expanded={expanded} onToggle={toggle} onOpen={open} />
       </nav>
 
       {/* Right: toolbar + contents */}
       <div className="min-w-0">
-        <div className="flex flex-wrap items-center gap-2 border-b border-line px-4 py-3">
-          <nav aria-label="Folder path" className="flex min-w-0 flex-1 flex-wrap items-center gap-1 text-sm">
-            <button type="button" onClick={() => open(null)} className={cx('flex items-center gap-1 rounded px-1.5 py-1 hover:bg-subtle', !currentId && 'font-semibold')}><FiHome aria-hidden="true" /> All folders</button>
+        <div className="flex flex-wrap items-center gap-2 border-b px-3 py-2.5 sm:px-4">
+          <nav aria-label="Folder path" className="flex min-w-0 flex-1 flex-wrap items-center gap-0.5 text-sm">
+            <button type="button" onClick={() => open(null)} className={crumb(!currentId)}><House className="size-3.5 flex-none" aria-hidden="true" />All folders</button>
             {path.map((f) => (
-              <span key={f.id} className="flex items-center gap-1">
-                <FiChevronRight className="text-muted" aria-hidden="true" />
-                <button type="button" onClick={() => open(f.id)} aria-current={f.id === currentId ? 'page' : undefined} className={cx('max-w-[200px] truncate rounded px-1.5 py-1 hover:bg-subtle', f.id === currentId && 'font-semibold')}>{f.name}</button>
+              <span key={f.id} className="flex min-w-0 items-center gap-0.5">
+                <ChevronRight className="size-3.5 flex-none text-muted-foreground/60" aria-hidden="true" />
+                <button type="button" onClick={() => open(f.id)} aria-current={f.id === currentId ? 'page' : undefined} className={crumb(f.id === currentId)}>{f.name}</button>
               </span>
             ))}
           </nav>
-          <div role="toolbar" aria-label="Folder actions" className="flex flex-wrap gap-2">
-            <button type="button" className="btn-secondary min-h-[38px] text-sm" onClick={() => setModal({ kind: 'folder', targetId: defaultTarget() })}><FiFolderPlus aria-hidden="true" /> New folder</button>
+          <div role="toolbar" aria-label="Folder actions" className="flex flex-wrap items-center gap-2">
+            <ToggleGroup type="single" value={layout} onValueChange={(v) => v && setLayout(v)} aria-label="Layout" className="h-8">
+              <SimpleTooltip label="List view"><ToggleGroupItem value="list" aria-label="List view" className="h-[26px] px-2"><List className="size-4" /></ToggleGroupItem></SimpleTooltip>
+              <SimpleTooltip label="Grid view"><ToggleGroupItem value="grid" aria-label="Grid view" className="h-[26px] px-2"><LayoutGrid className="size-4" /></ToggleGroupItem></SimpleTooltip>
+            </ToggleGroup>
+            <Button type="button" variant="outline" size="sm" onClick={() => setModal({ kind: 'folder', targetId: defaultTarget() })}><FolderPlus />New folder</Button>
             {/* <button type="button" className="btn-secondary min-h-[38px] text-sm" onClick={() => setModal({ kind: 'file', targetId: defaultTarget() })}><FiFilePlus aria-hidden="true" /> New file</button> */}
-            <button type="button" className="btn-primary min-h-[38px] text-sm" onClick={() => startUpload(defaultTarget())}><FiUpload aria-hidden="true" /> Upload file</button>
+            <Button type="button" size="sm" onClick={() => startUpload(defaultTarget())}><Upload />Upload</Button>
           </div>
         </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[520px] border-collapse text-sm" aria-label={current ? `Contents of ${current.name}` : 'Top level'}>
-            <thead>
-              <tr className="bg-subtle text-left text-xs uppercase tracking-wide text-muted">
-                <th className="px-4 py-2.5 font-semibold">Name</th>
-                <th className="w-28 px-3 py-2.5 font-semibold">Type</th>
-                <th className="w-28 px-3 py-2.5 font-semibold">Size</th>
-                <th className="w-14 px-3 py-2.5"><span className="sr-only">Actions</span></th>
-              </tr>
-            </thead>
-            <tbody>
+        {list.length === 0 ? (
+          <div className="p-4 sm:p-6">
+            <div className="rounded-xl border-2 border-dashed bg-subtle/40">
+              <EmptyState icon={FolderOpen} title={current ? `“${current.name}” is empty` : 'No folders yet'} description="Upload files or create a folder to organise this space."
+                action={<><Button size="sm" onClick={() => startUpload(defaultTarget())}><Upload />Upload files</Button>
+                  <Button variant="outline" size="sm" onClick={() => setModal({ kind: 'folder', targetId: defaultTarget() })}><FolderPlus />New folder</Button></>} />
+            </div>
+          </div>
+        ) : layout === 'grid' ? (
+          <ul aria-label={current ? `Contents of ${current.name}` : 'Top level'} className="grid grid-cols-2 gap-3 p-4 sm:grid-cols-3 xl:grid-cols-4">
+            {list.map((n) => {
+              const isFolder = n.type === 'folder';
+              const c = isFolder ? countItems(n.children) : null;
+              return (
+                <li key={n.id} className="group relative" onDoubleClick={() => isFolder && open(n.id)}>
+                  <button type="button" onClick={() => isFolder && open(n.id)} disabled={!isFolder}
+                    className="flex w-full flex-col items-start gap-3 rounded-lg border bg-card p-3.5 text-left shadow-xs transition-[border-color,box-shadow,background-color] hover:border-line-strong hover:shadow-raised focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50 disabled:cursor-default">
+                    {isFolder
+                      ? <span className="inline-flex size-10 items-center justify-center rounded-lg bg-warning-50" aria-hidden="true"><FolderGlyph locked={n.locked} className="size-5" /></span>
+                      : <FileTypeIcon name={n.name} tile className="size-10 [&_svg]:size-5" />}
+                    <span className="w-full min-w-0 pr-6">
+                      <span className="block truncate text-sm font-medium text-foreground">{n.name}</span>
+                      <span className="block truncate text-xs text-muted-foreground">{isFolder ? itemsLabel(c) : `${fileKind(n.name)} · ${fileSize(n.size)}`}</span>
+                    </span>
+                  </button>
+                  {n.locked && <Badge variant="neutral" className="pointer-events-none absolute left-[3.75rem] top-3.5"><Lock />Default</Badge>}
+                  <div className="absolute right-2 top-2">{menuFor(n, 'opacity-70 group-hover:opacity-100 data-[state=open]:opacity-100')}</div>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <Table className="min-w-[520px]" aria-label={current ? `Contents of ${current.name}` : 'Top level'}>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Name</TableHead>
+                <TableHead className="w-28">Type</TableHead>
+                <TableHead className="w-28">Size</TableHead>
+                <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {list.map((n) => {
                 const c = n.type === 'folder' ? countItems(n.children) : null;
                 return (
-                  <tr key={n.id} className="border-t border-line-soft hover:bg-subtle/60" onDoubleClick={() => n.type === 'folder' && open(n.id)}>
-                    <td className="px-4 py-2">
+                  <TableRow key={n.id} onDoubleClick={() => n.type === 'folder' && open(n.id)}>
+                    <TableCell className="py-2">
                       {n.type === 'folder' ? (
-                        <button type="button" onClick={() => open(n.id)} className="flex items-center gap-2.5 text-left font-semibold hover:text-brand-600 hover:underline">
-                          {n.locked ? <FiLock className="flex-none text-muted" aria-hidden="true" /> : <FiFolder className="flex-none text-warning-700" aria-hidden="true" />}{n.name}
-                          {n.locked && <span className="rounded bg-subtle px-1.5 py-0.5 text-[11px] font-semibold text-muted no-underline">Default</span>}
+                        <button type="button" onClick={() => open(n.id)} className="group/name flex min-w-0 items-center gap-2.5 text-left font-medium text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+                          <FolderGlyph locked={n.locked} />
+                          <span className="truncate underline-offset-4 group-hover/name:underline">{n.name}</span>
+                          {n.locked && <Badge variant="neutral">Default</Badge>}
                         </button>
                       ) : (
-                        <span className="flex items-center gap-2.5"><FiFile className="flex-none text-brand-600" aria-hidden="true" />{n.name}</span>
+                        <span className="flex min-w-0 items-center gap-2.5"><FileTypeIcon name={n.name} /><span className="truncate">{n.name}</span></span>
                       )}
-                    </td>
-                    <td className="px-3 py-2 text-muted">{n.type === 'folder' ? 'Folder' : fileKind(n.name)}</td>
-                    <td className="px-3 py-2 text-muted">{n.type === 'folder' ? `${c.folders + c.files} item${c.folders + c.files === 1 ? '' : 's'}` : fileSize(n.size)}</td>
-                    <td className="px-3 py-2"><div className="flex justify-end">{menuFor(n)}</div></td>
-                  </tr>
+                    </TableCell>
+                    <TableCell className="py-2 text-muted-foreground">{n.type === 'folder' ? 'Folder' : fileKind(n.name)}</TableCell>
+                    <TableCell className="py-2 tabular-nums text-muted-foreground">{n.type === 'folder' ? itemsLabel(c) : fileSize(n.size)}</TableCell>
+                    <TableCell className="py-2 text-right">{menuFor(n)}</TableCell>
+                  </TableRow>
                 );
               })}
-            </tbody>
-          </table>
-          {list.length === 0 && (
-            <div className="flex flex-col items-center gap-2 p-10 text-center text-muted">
-              <FiFolderMinus size={28} aria-hidden="true" />
-              This folder is empty.
-              <span className="text-xs">Use New folder, New file or Upload file above.</span>
-            </div>
-          )}
-        </div>
+            </TableBody>
+          </Table>
+        )}
       </div>
 
       {/* Modals */}
@@ -154,16 +200,21 @@ export default function FolderExplorer({ items, onChange }) {
       )}
       {modal?.kind === 'delete' && node && (
         <Modal title={`Delete “${node.name}”?`} onClose={() => setModal(null)}
-          footer={<><button type="button" className="btn-secondary" onClick={() => setModal(null)}>Cancel</button><button type="button" className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={() => {
+          description={node.type === 'folder' && delCount.folders + delCount.files > 0
+            ? `This also deletes everything inside it (${delCount.folders} folder${delCount.folders === 1 ? '' : 's'}, ${delCount.files} file${delCount.files === 1 ? '' : 's'}).`
+            : 'This can’t be undone.'}
+          footer={<><Button type="button" variant="outline" onClick={() => setModal(null)}>Cancel</Button><Button type="button" variant="destructive" onClick={() => {
             if (currentId && (node.id === currentId || (findPath(items, currentId) || []).some((f) => f.id === node.id))) setCurrentId(parentIdOf(items, node.id));
             onChange(removeNode(items, node.id)); setModal(null); notify(`Deleted “${node.name}”`);
-          }}>Delete</button></>}>
-          <p className="text-muted">{node.type === 'folder' && delCount.folders + delCount.files > 0
-            ? `This also deletes everything inside it (${delCount.folders} folder${delCount.folders === 1 ? '' : 's'}, ${delCount.files} file${delCount.files === 1 ? '' : 's'}).`
-            : 'This can’t be undone.'}</p>
+          }}><Trash2 />Delete {node.type}</Button></>}>
+          <div className="flex items-center gap-3 rounded-lg border bg-subtle px-3 py-2.5 text-sm">
+            {node.type === 'folder' ? <FolderGlyph locked={node.locked} /> : <FileTypeIcon name={node.name} />}
+            <span className="min-w-0 flex-1 truncate font-medium">{node.name}</span>
+            <span className="text-xs text-muted-foreground">{node.type === 'folder' ? itemsLabel(delCount) : fileSize(node.size)}</span>
+          </div>
         </Modal>
       )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-[80] -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
+      <ToastBridge message={toast} />
     </div>
   );
 }

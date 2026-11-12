@@ -1,8 +1,14 @@
 import { useState } from 'react';
-import { FiCheck, FiTag, FiTrash2, FiX } from 'react-icons/fi';
-import { Drawer, cx } from '../../../components/ui';
+import { Check, Monitor, Tag, Trash2 } from 'lucide-react';
+import { CloseButton, Drawer } from '../../../components/ui';
+import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { Textarea } from '../../../components/ui/textarea';
+import { cn } from 'lib/utils';
 import { useData } from '../../../context/DataContext';
-import  { TAG_PALETTE, colorName,  } from '../../../components/TagChip';
+import { TAG_PALETTE, colorName } from '../../../components/TagChip';
+
 /**
  * One drawer for creating and editing a client-facing job.
  * - job: the job to edit, or null to create a new one
@@ -103,292 +109,225 @@ export default function ClientFacingJobDrawer({
     color,
   };
 
+  // Soft, theme-aware tint of the chosen colour for the header icon
+  const tint = {
+    backgroundColor: `color-mix(in srgb, ${color} 14%, transparent)`,
+    borderColor: `color-mix(in srgb, ${color} 35%, transparent)`,
+    color: `color-mix(in srgb, ${color} 70%, hsl(var(--foreground)))`,
+  };
+
   return (
     <Drawer
       onClose={onClose}
       label={isNew ? 'New client-facing job' : `Edit job ${job.label}`}
       width="max-w-[480px]"
     >
-      {/* Header */}
-      <div className="flex items-center gap-4 border-b border-line p-5 sm:p-6">
-        <span
-          className="flex h-14 w-14 flex-none items-center justify-center rounded-full"
-          style={{
-            backgroundColor: color,
-            color: textOn(color),
+      <div className="flex h-full min-h-0 flex-1 flex-col">
+        {/* Header */}
+        <header className="flex items-start gap-3 border-b px-6 py-4">
+          <span
+            className="inline-flex size-9 flex-none items-center justify-center rounded-lg border shadow-xs transition-colors"
+            style={tint}
+            aria-hidden="true"
+          >
+            <Tag className="size-4" />
+          </span>
+
+          <div className="min-w-0 flex-1">
+            <h2 className="truncate text-lg font-semibold tracking-tight">
+              {isNew ? 'New client-facing job' : 'Edit job'}
+            </h2>
+
+            <p className="truncate text-sm text-muted-foreground">
+              {isNew
+                ? 'Create a job status visible to clients'
+                : `Used by ${usage} account${usage === 1 ? '' : 's'}`}
+            </p>
+          </div>
+
+          <CloseButton onClick={onClose} className="-mr-2" />
+        </header>
+
+        <form
+          className="flex min-h-0 flex-1 flex-col gap-6 overflow-y-auto px-6 py-5"
+          onSubmit={(e) => {
+            e.preventDefault();
+            save();
           }}
-          aria-hidden="true"
+          noValidate
         >
-          <FiTag size={22} />
-        </span>
-
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-xl font-bold">
-            {isNew ? 'New client-facing job' : 'Edit job'}
-          </h2>
-
-          <div className="truncate text-muted">
-            {isNew
-              ? 'Create a job status visible to clients'
-              : `Used by ${usage} account${usage === 1 ? '' : 's'}`}
-          </div>
-        </div>
-
-        <button
-          onClick={onClose}
-          aria-label="Close"
-          className="flex h-10 w-10 flex-none items-center justify-center rounded text-muted hover:bg-subtle"
-        >
-          <FiX size={20} />
-        </button>
-      </div>
-
-      <form
-        className="flex flex-1 flex-col gap-6 p-5 sm:p-6"
-        onSubmit={(e) => {
-          e.preventDefault();
-          save();
-        }}
-        noValidate
-      >
-        {/* Preview: client-facing job status */}
-        <div className="rounded-lg border border-line bg-subtle p-4">
-          <div className="mb-2.5 text-xs font-semibold text-muted">
-            Client preview
-          </div>
-
-          <div className="rounded-lg border border-line bg-surface p-4">
-            <div className="mb-2 text-xs font-medium text-muted">
-              Job status
+          {/* Preview: client-facing job status */}
+          <div className="overflow-hidden rounded-xl border bg-subtle">
+            <div className="flex items-center gap-1.5 border-b px-4 py-2 text-xs font-medium text-muted-foreground">
+              <Monitor className="size-3.5" aria-hidden="true" />
+              Client preview
             </div>
 
-            <span
-              className="inline-flex items-center rounded-full px-3 py-1.5 text-sm font-semibold"
-              style={{
-                backgroundColor: color,
-                color: textOn(color),
-              }}
-            >
-              {preview.label}
-            </span>
+            <div className="p-4">
+              <div className="rounded-lg border bg-card p-4 shadow-xs">
+                <div className="mb-2 text-xs font-medium text-muted-foreground">
+                  Job status
+                </div>
 
-            {description.trim() && (
-              <p className="mt-3 text-sm text-muted">
-                {description.trim()}
-              </p>
-            )}
-          </div>
-
-          <p className="mt-2.5 text-xs text-muted">
-            This is how the job status will appear to clients.
-          </p>
-        </div>
-
-        {/* Name */}
-        <label className="field-label">
-          Name *
-          <input
-            className={cx('input', error && 'border-danger-700')}
-            value={label}
-            maxLength={30}
-            autoFocus
-            onChange={(e) => {
-              setLabel(e.target.value);
-              setError('');
-            }}
-            placeholder="e.g. Documents requested"
-          />
-
-          <span className="flex justify-between text-xs font-normal text-muted">
-            <span className={cx(error && 'font-semibold text-danger-700')}>
-              {error || 'Short and clear works best.'}
-            </span>
-            <span>{label.length}/30</span>
-          </span>
-        </label>
-
-        {/* Color */}
-        {/* <fieldset>
-          <legend className="mb-2.5 text-sm font-semibold">
-            Color
-          </legend>
-
-          <div className="grid grid-cols-6 gap-2.5">
-            {[
-              '#2563EB',
-              '#16A34A',
-              '#DC2626',
-              '#9333EA',
-              '#EA580C',
-              '#0891B2',
-            ].map((hex) => {
-              const selected = color.toLowerCase() === hex.toLowerCase();
-
-              return (
-                <button
-                  key={hex}
-                  type="button"
-                  aria-label={hex}
-                  aria-pressed={selected}
-                  onClick={() => pickColor(hex)}
-                  className={cx(
-                    'flex aspect-square items-center justify-center rounded-full transition-transform',
-                    selected
-                      ? 'ring-2 ring-ink ring-offset-2'
-                      : 'hover:scale-105'
-                  )}
+                <span
+                  className="inline-flex max-w-full items-center truncate rounded-full px-3 py-1 text-sm font-semibold shadow-xs"
                   style={{
-                    backgroundColor: hex,
-                    color: textOn(hex),
+                    backgroundColor: color,
+                    color: textOn(color),
                   }}
                 >
-                  {selected && <FiCheck size={18} />}
-                </button>
-              );
-            })}
+                  {preview.label}
+                </span>
+
+                {description.trim() && (
+                  <p className="mt-3 text-sm text-muted-foreground">
+                    {description.trim()}
+                  </p>
+                )}
+              </div>
+
+              <p className="mt-2.5 text-xs text-muted-foreground">
+                This is how the job status will appear to clients.
+              </p>
+            </div>
           </div>
 
-          <div className="mt-4 flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm font-semibold">
-              Custom
-              <input
-                type="color"
-                value={color}
-                onChange={(e) => pickColor(e.target.value.toUpperCase())}
-                className="h-10 w-12 cursor-pointer rounded border border-line-strong bg-surface p-1"
-                aria-label="Pick a custom color"
-              />
+          {/* Name */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="cf-job-name" className="text-sm font-medium">
+              Name <span className="text-danger-700">*</span>
             </label>
-
-            <input
-              aria-label="Hex color"
-              value={hexInput}
-              onChange={(e) => onHex(e.target.value.trim())}
-              maxLength={7}
-              className={cx(
-                'input w-32 font-mono uppercase',
-                !isHex(hexInput) && 'border-danger-700'
-              )}
+            <Input
+              id="cf-job-name"
+              aria-invalid={!!error}
+              value={label}
+              maxLength={30}
+              autoFocus
+              onChange={(e) => {
+                setLabel(e.target.value);
+                setError('');
+              }}
+              placeholder="e.g. Documents requested"
             />
 
-            <span className="text-sm text-muted">{color}</span>
+            <span className="flex justify-between gap-3 text-xs text-muted-foreground">
+              <span role={error ? 'alert' : undefined} className={cn(error && 'text-danger-700')}>
+                {error || 'Short and clear works best.'}
+              </span>
+              <span className={cn('tabular-nums', label.length >= 30 && 'font-medium text-warning-700')}>{label.length}/30</span>
+            </span>
           </div>
 
-          {!isHex(hexInput) && (
-            <p className="mt-1.5 text-sm text-danger-700">
-              Use a 6-digit hex code like #1D4ED8.
-            </p>
-          )}
-        </fieldset> */}
-<fieldset>
-  <legend className="mb-2.5 text-sm font-semibold">Color</legend>
+          {/* Color */}
+          <fieldset className="flex flex-col gap-3">
+            <legend className="mb-2 text-sm font-medium">Color</legend>
 
-  <div role="radiogroup" aria-label="Tag color" className="flex flex-wrap items-center gap-2">
-    {TAG_PALETTE.map(({ hex, name }) => {
-      const selected = color.toLowerCase() === hex.toLowerCase();
+            <div role="radiogroup" aria-label="Tag color" className="flex flex-wrap items-center gap-2">
+              {TAG_PALETTE.map(({ hex, name }) => {
+                const selected = color.toLowerCase() === hex.toLowerCase();
 
-      return (
-        <button
-          key={hex}
-          type="button"
-          role="radio"
-          aria-checked={selected}
-          aria-label={name}
-          title={name}
-          onClick={() => pickColor(hex)}
-          className={cx(
-            'flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition-all duration-150',
-            'focus:outline-none focus-visible:ring-2 focus-visible:ring-ink focus-visible:ring-offset-2',
-            selected
-              ? 'ring-2 ring-ink ring-offset-2 ring-offset-surface'
-              : 'ring-1 ring-inset ring-black/10 hover:scale-110 hover:shadow-sm'
-          )}
-          style={{ backgroundColor: hex, color: textOn(hex) }}
-        >
-          {selected && <FiCheck size={14} strokeWidth={3} aria-hidden="true" />}
-        </button>
-      );
-    })}
-  </div>
+                return (
+                  <button
+                    key={hex}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    aria-label={name}
+                    title={name}
+                    onClick={() => pickColor(hex)}
+                    className={cn(
+                      'flex size-7 shrink-0 items-center justify-center rounded-full transition-all duration-150',
+                      'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-card',
+                      selected
+                        ? 'ring-2 ring-foreground/70 ring-offset-2 ring-offset-card'
+                        : 'ring-1 ring-inset ring-foreground/10 hover:scale-110 hover:shadow-raised'
+                    )}
+                    style={{ backgroundColor: hex, color: textOn(hex) }}
+                  >
+                    {selected && <Check className="size-3.5" strokeWidth={3} aria-hidden="true" />}
+                  </button>
+                );
+              })}
+            </div>
 
-  <div className="mt-4 flex flex-wrap items-center gap-3">
-    <label className="flex items-center gap-2 text-sm font-semibold">
-      Custom
-      <input
-        type="color"
-        value={color}
-        onChange={(e) => pickColor(e.target.value.toUpperCase())}
-        className="h-10 w-12 cursor-pointer rounded border border-line-strong bg-surface p-1"
-        aria-label="Pick a custom color"
-      />
-    </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <label className="relative inline-flex size-9 cursor-pointer items-center justify-center overflow-hidden rounded-md border border-input bg-card shadow-xs transition-colors hover:bg-accent">
+                <span className="sr-only">Custom</span>
+                <span className="size-5 rounded ring-1 ring-inset ring-foreground/10" style={{ backgroundColor: color }} aria-hidden="true" />
+                <input
+                  type="color"
+                  value={color}
+                  onChange={(e) => pickColor(e.target.value.toUpperCase())}
+                  className="absolute inset-0 cursor-pointer opacity-0"
+                  aria-label="Pick a custom color"
+                />
+              </label>
 
-    <input
-      aria-label="Hex color"
-      value={hexInput}
-      onChange={(e) => onHex(e.target.value.trim())}
-      maxLength={7}
-      className={cx('input w-32 font-mono uppercase', !isHex(hexInput) && 'border-danger-700')}
-    />
+              <Input
+                aria-label="Hex color"
+                aria-invalid={!isHex(hexInput)}
+                value={hexInput}
+                onChange={(e) => onHex(e.target.value.trim())}
+                maxLength={7}
+                className="w-28 font-mono uppercase"
+              />
 
-    <span className="text-sm text-muted">{colorName(color)}</span>
-  </div>
+              <Badge variant="neutral">{colorName(color)}</Badge>
+            </div>
 
-  {!isHex(hexInput) && (
-    <p className="mt-1.5 text-sm text-danger-700">Use a 6-digit hex code like #1D4ED8.</p>
-  )}
-</fieldset>
-        {/* Description */}
-        <label className="field-label">
-          Description
-          <textarea
-            className="input min-h-[84px] py-2.5"
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="When should the team use this job status? (optional)"
+            {!isHex(hexInput) && (
+              <p className="text-xs text-danger-700">Use a 6-digit hex code like #1D4ED8.</p>
+            )}
+          </fieldset>
+
+          {/* Description */}
+          <div className="flex flex-col gap-1.5">
+            <label htmlFor="cf-job-description" className="text-sm font-medium">
+              Description <span className="font-normal text-muted-foreground">(optional)</span>
+            </label>
+            <Textarea
+              id="cf-job-description"
+              className="min-h-[84px]"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              placeholder="When should the team use this job status? (optional)"
+            />
+          </div>
+
+          <button
+            type="submit"
+            className="hidden"
+            aria-hidden="true"
+            tabIndex={-1}
           />
-        </label>
+        </form>
 
-        <button
-          type="submit"
-          className="hidden"
-          aria-hidden="true"
-          tabIndex={-1}
-        />
-      </form>
+        {/* Footer */}
+        <footer className="flex flex-wrap items-center justify-between gap-2 border-t bg-subtle px-6 py-3.5">
+          {!isNew ? (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => onDelete?.(job)}
+              className="text-danger-700 hover:bg-danger-50 hover:text-danger-700"
+            >
+              <Trash2 aria-hidden="true" />
+              Delete job
+            </Button>
+          ) : (
+            <span />
+          )}
 
-      {/* Footer */}
-      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2.5 border-t border-line bg-subtle px-5 py-4 sm:px-6">
-        {!isNew ? (
-          <button
-            type="button"
-            onClick={() => onDelete?.(job)}
-            className="inline-flex min-h-[44px] items-center gap-2 rounded px-3 font-semibold text-danger-700 hover:bg-danger-50"
-          >
-            <FiTrash2 aria-hidden="true" />
-            Delete job
-          </button>
-        ) : (
-          <span />
-        )}
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" onClick={onClose}>
+              Cancel
+            </Button>
 
-        <div className="flex gap-2.5">
-          <button
-            type="button"
-            className="btn-secondary"
-            onClick={onClose}
-          >
-            Cancel
-          </button>
-
-          <button
-            type="button"
-            className="btn-primary"
-            onClick={save}
-          >
-            {isNew ? 'Create job' : 'Save changes'}
-          </button>
-        </div>
+            <Button type="button" onClick={save}>
+              {isNew ? 'Create job' : 'Save changes'}
+            </Button>
+          </div>
+        </footer>
       </div>
     </Drawer>
   );

@@ -1,14 +1,23 @@
-import { useEffect, useRef, useState } from 'react';
-import { FiBriefcase, FiCalendar, FiCheck, FiChevronDown, FiEye, FiFileText, FiMessageSquare, FiTrash2, FiUsers, FiX } from 'react-icons/fi';
+import { useState } from 'react';
+import { Briefcase, CalendarDays, CircleAlert, Eye, FileText, MessageSquare, Plus, Trash2, Users } from 'lucide-react';
 import MultiSelect from '../../../components/MultiSelect';
 import ShortcodeTextField from '../../../components/ShortcodeTextField';
 import TextEditor from '../../../components/TextEditor';
-import { Avatar, Drawer, Modal, Toggle, cx, initials } from '../../../components/ui';
+import { Avatar, CloseButton, Drawer, Modal, Toggle, initials } from '../../../components/ui';
+import { Badge } from '../../../components/ui/badge';
+import { Button } from '../../../components/ui/button';
+import { Input } from '../../../components/ui/input';
+import { Label } from '../../../components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
+import { Textarea } from '../../../components/ui/textarea';
+import { SimpleTooltip } from '../../../components/ui/tooltip';
+import { ToastBridge } from '../../../components/ui/sonner';
 import { useData } from '../../../context/DataContext';
 import { TEAM_MEMBERS } from '../../../data/sampleData';
 import { accountShortcuts } from '../../../data/shortcodes';
-import { DURATION_OPTIONS, PRIORITY_STYLE, TASK_PRIORITIES } from '../../../data/taskTemplates';
+import { DURATION_OPTIONS, TASK_PRIORITIES } from '../../../data/taskTemplates';
 import { CLIENT_DESCRIPTION_LIMIT, emptyJobTemplate } from '../../../data/jobtemplates';
+import { cn } from 'lib/utils';
 
 /**
  * Turns DataContext's client-facing statuses into dropdown options.
@@ -29,60 +38,62 @@ export function statusOptionsFrom(list = []) {
 
 const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
 const LIMIT = CLIENT_DESCRIPTION_LIMIT || 250;
+const PRIORITY_DOT = { Low: 'bg-muted-foreground/50', Medium: 'bg-brand-500', High: 'bg-warning-500', Urgent: 'bg-danger-500' };
 /** Works whether a field calls onChange(text) or onChange(event). */
 const textOf = (v) => (v && typeof v === 'object' && v.target ? v.target.value : v ?? '');
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
-function Section({ title, icon, children }) {
+/** Drawer section: small icon + title, divided from the next one. */
+function Section({ title, icon: Icon, children }) {
   return (
-    <section className="border-b border-line px-5 py-5 last:border-b-0 sm:px-6">
-      <h3 className="mb-4 flex items-center gap-2 font-semibold">{icon}{title}</h3>
-      <div className="flex flex-col gap-4">{children}</div>
+    <section className="flex flex-col gap-4 border-b px-6 py-5 last:border-b-0">
+      <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+        {Icon && <Icon className="size-4 text-muted-foreground" aria-hidden="true" />}{title}
+      </h3>
+      {children}
     </section>
   );
 }
+function FieldError({ id, children }) {
+  return <p id={id} className="flex items-center gap-1 text-xs font-medium text-danger-700"><CircleAlert className="size-3.5 flex-none" aria-hidden="true" />{children}</p>;
+}
 function SwitchRow({ label, description, checked, onChange }) {
   return (
-    <div className="flex items-start justify-between gap-4 rounded-md border border-line p-3.5">
-      <div><div className="font-semibold">{label}</div>{description && <div className="text-sm text-muted">{description}</div>}</div>
+    <div className={cn('flex items-start justify-between gap-4 rounded-lg border p-3.5 transition-colors', checked ? 'border-primary/25 bg-primary/[0.03]' : 'bg-subtle/40')}>
+      <div className="min-w-0">
+        <div className="text-sm font-medium text-foreground">{label}</div>
+        {description && <div className="mt-0.5 text-sm text-muted-foreground">{description}</div>}
+      </div>
       <Toggle label={label} checked={checked} onChange={onChange} />
     </div>
   );
 }
 
-/** Status dropdown that shows each client-facing status with its color dot. */
-function StatusSelect({ value, onChange, statuses }) {
-  const [open, setOpen] = useState(false);
-  const box = useRef(null);
+/** Status dropdown that shows each client-facing status with its colour dot. */
+function StatusSelect({ value, onChange, statuses, error }) {
   const current = statuses.find((s) => String(s.id) === String(value));
-  useEffect(() => {
-    const h = (e) => { if (!box.current?.contains(e.target)) setOpen(false); };
-    document.addEventListener('mousedown', h);
-    return () => document.removeEventListener('mousedown', h);
-  }, []);
   return (
-    <div ref={box} className="relative">
-      <span id="job-status-label" className="mb-1.5 block text-sm font-semibold">Status</span>
-      <button type="button" aria-haspopup="listbox" aria-expanded={open} aria-labelledby="job-status-label" onClick={() => setOpen((o) => !o)}
-        onKeyDown={(e) => { if (e.key === 'Escape') { e.stopPropagation(); setOpen(false); } }}
-        className="flex min-h-[44px] w-full items-center gap-2 rounded border border-line-strong bg-surface px-3 text-left focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-600/30">
-        {current ? <><span className="h-3 w-3 flex-none rounded-full" style={{ backgroundColor: current.color }} />{current.name}</> : <span className="text-muted/70">Select client-facing status</span>}
-        <FiChevronDown className="ml-auto text-muted" aria-hidden="true" />
-      </button>
-      {open && (
-        <ul role="listbox" aria-label="Client-facing statuses" className="absolute left-0 right-0 z-40 mt-1 max-h-64 overflow-y-auto rounded-md border border-line bg-surface p-1 shadow-pop">
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor="job-drawer-status">Status</Label>
+      <Select value={current ? String(current.id) : ''}
+        onValueChange={(v) => { const s = statuses.find((x) => String(x.id) === v); if (s) onChange(s.id); }}>
+        <SelectTrigger id="job-drawer-status" aria-invalid={!!error} className={cn(error && 'border-destructive')}>
+          <SelectValue placeholder="Select client-facing status" />
+        </SelectTrigger>
+        <SelectContent>
           {statuses.map((s) => (
-            <li key={s.id} role="option" aria-selected={String(s.id) === String(value)} onClick={() => { onChange(s.id); setOpen(false); }}
-              className={cx('flex cursor-pointer items-center gap-2 rounded px-3 py-2', String(s.id) === String(value) ? 'bg-brand-50' : 'hover:bg-subtle')}>
-              <span className="h-3 w-3 flex-none rounded-full" style={{ backgroundColor: s.color }} />
-              <span className="flex-1">{s.name}</span>
-              {s.stage != null && <span className="text-xs text-muted">Stage {s.stage}</span>}
-              {String(s.id) === String(value) && <FiCheck className="text-brand-600" aria-hidden="true" />}
-            </li>
+            <SelectItem key={String(s.id)} value={String(s.id)}>
+              <span className="flex items-center gap-2">
+                <span className="size-2.5 flex-none rounded-full ring-1 ring-inset ring-foreground/10" style={{ backgroundColor: s.color }} aria-hidden="true" />
+                <span className="truncate">{s.name}</span>
+                {s.stage != null && <span className="text-xs text-muted-foreground">· Stage {s.stage}</span>}
+              </span>
+            </SelectItem>
           ))}
-          {statuses.length === 0 && <li className="px-3 py-2 text-sm text-muted">No client-facing statuses yet. Add them in the Client-facing Status tab.</li>}
-        </ul>
-      )}
+          {statuses.length === 0 && <p className="px-2 py-2 text-sm text-muted-foreground">No client-facing statuses yet. Add them in the Client-facing Status tab.</p>}
+        </SelectContent>
+      </Select>
+      {error && <FieldError>{error}</FieldError>}
     </div>
   );
 }
@@ -104,6 +115,7 @@ export default function JobTemplateDrawer({ template, onClose, onDone }) {
   const [modal, setModal] = useState(null); // 'discard' | 'delete'
   const [note, setNote] = useState('');
   const dirty = JSON.stringify(form) !== JSON.stringify(saved);
+  const hasErrors = Object.values(errors).some(Boolean);
   const set = (k, v) => { const value = textOf(v); setForm((f) => ({ ...f, [k]: value })); setErrors((e) => ({ ...e, [k]: undefined })); };
 
   /* client-facing status → fills the Description below */
@@ -165,138 +177,155 @@ export default function JobTemplateDrawer({ template, onClose, onDone }) {
   const handleCloseJobTemp = () => (dirty ? setModal('discard') : onClose());
 
   const relRow = (label, numKey, unitKey) => (
-    <div className="grid grid-cols-[64px_1fr_120px] items-center gap-3">
-      <span className="text-sm font-semibold">{label}</span>
-      <input aria-label={label} className="input" type="number" min="0" value={form[numKey]} onChange={(e) => set(numKey, e.target.value)} />
-      <select aria-label={`${label} unit`} className="input" value={form[unitKey]} onChange={(e) => set(unitKey, e.target.value)}>
-        {DURATION_OPTIONS.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+    <div className="grid grid-cols-[64px_minmax(0,1fr)_minmax(0,130px)] items-center gap-3">
+      <Label htmlFor={`jd-${numKey}`} className="text-muted-foreground">{label}</Label>
+      <Input id={`jd-${numKey}`} aria-label={label} type="number" min="0" className="tabular-nums" value={form[numKey]} onChange={(e) => set(numKey, e.target.value)} />
+      <Select value={form[unitKey] ? String(form[unitKey]) : ''} onValueChange={(v) => set(unitKey, v)}>
+        <SelectTrigger aria-label={`${label} unit`}><SelectValue placeholder="Unit" /></SelectTrigger>
+        <SelectContent>{DURATION_OPTIONS.map((o) => <SelectItem key={o.value} value={o.value}>{o.label}</SelectItem>)}</SelectContent>
+      </Select>
     </div>
   );
 
   return (
     <Drawer onClose={handleCloseJobTemp} label={editingId ? 'Edit Job Template' : 'Create Job Template'} width="max-w-[720px]">
-      {/* Header */}
-      <div className="flex items-center gap-4 border-b border-line p-5 sm:p-6">
-        <span className="flex h-14 w-14 flex-none items-center justify-center rounded-full bg-brand-600 text-white" aria-hidden="true"><FiBriefcase size={22} /></span>
-        <div className="min-w-0 flex-1">
-          <h2 className="truncate text-xl font-bold">{editingId ? 'Edit Job Template' : 'Create Job Template'}</h2>
-          <div className="truncate text-muted">Configure your job template settings</div>
-        </div>
-        <button onClick={handleCloseJobTemp} aria-label="Close" className="flex h-10 w-10 flex-none items-center justify-center rounded text-muted hover:bg-subtle"><FiX size={20} /></button>
-      </div>
-
-      {(dirty || Object.values(errors).some(Boolean)) && (
-        <div className={cx('px-5 py-2.5 text-sm font-semibold sm:px-6', Object.values(errors).some(Boolean) ? 'bg-danger-50 text-danger-700' : 'bg-warning-50 text-warning-700')} role={Object.values(errors).some(Boolean) ? 'alert' : undefined}>
-          {Object.values(errors).some(Boolean) ? 'Please fix the highlighted fields.' : 'You have unsaved changes.'}
-        </div>
-      )}
-
-      <form className="flex-1" noValidate onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
-        <Section title="General Information" icon={<FiFileText aria-hidden="true" />}>
-          <label className="field-label">
-            <span>Template Name <span className="text-danger-700">*</span></span>
-            <input className={cx('input', errors.templatename && 'border-danger-700')} value={form.templatename} onChange={(e) => set('templatename', e.target.value)} placeholder="Template Name" />
-            {errors.templatename && <span className="text-sm font-normal text-danger-700">{errors.templatename}</span>}
-          </label>
-          <ShortcodeTextField label="Job Name" required value={form.jobName} onChange={(v) => set('jobName', v)} placeholder="Job Name" shortcuts={accountShortcuts} error={errors.jobName} />
-        </Section>
-
-        <Section title="Assignment" icon={<FiUsers aria-hidden="true" />}>
-          <MultiSelect label="Job Assignees" placeholder="Job Assignees" options={TEAM_OPTIONS} value={form.assignees} onChange={(v) => set('assignees', v)}
-            renderOption={(o) => (
-              <span className="flex flex-1 items-center gap-2.5"><Avatar text={initials(o.label)} size="sm" />
-                <span><span className="block font-semibold">{o.label}</span><span className="block text-sm text-muted">{o.meta}</span></span></span>
-            )} />
-          <div>
-            <span className="mb-1.5 block text-sm font-semibold">Priority</span>
-            <div role="radiogroup" aria-label="Priority" className="flex flex-wrap gap-1.5">
-              {TASK_PRIORITIES.map((p) => (
-                <button key={p} type="button" role="radio" aria-checked={form.priority === p} onClick={() => set('priority', p)}
-                  className={cx('min-h-[38px] rounded-full px-3.5 text-sm font-semibold ring-offset-2', PRIORITY_STYLE[p], form.priority === p ? 'ring-2 ring-brand-600' : 'opacity-70 hover:opacity-100')}>{p}</button>
-              ))}
+      <div className="flex h-full min-h-0 flex-col">
+        {/* Header */}
+        <div className="flex flex-none items-start gap-3.5 border-b px-6 py-5">
+          <span className="inline-flex size-10 flex-none items-center justify-center rounded-xl border border-brand-100 bg-brand-50 text-brand-700" aria-hidden="true"><Briefcase className="size-5" /></span>
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="truncate text-lg font-semibold tracking-tight">{editingId ? 'Edit Job Template' : 'Create Job Template'}</h2>
+              {dirty && <Badge variant="warning" dot>Unsaved</Badge>}
             </div>
+            <p className="truncate text-sm text-muted-foreground">Configure your job template settings</p>
           </div>
-        </Section>
+          <CloseButton onClick={handleCloseJobTemp} />
+        </div>
 
-        <Section title="Description">
-          <TextEditor ariaLabel="Job description" value={form.description} onChange={(html) => set('description', html)} shortcuts={accountShortcuts} placeholder="Describe the job…" minHeight={150} />
-        </Section>
+        {(dirty || hasErrors) && (
+          <div className={cn('flex flex-none items-center gap-2 border-b px-6 py-2 text-sm font-medium', hasErrors ? 'bg-danger-50 text-danger-700' : 'bg-warning-50 text-warning-700')} role={hasErrors ? 'alert' : undefined}>
+            {hasErrors && <CircleAlert className="size-4" aria-hidden="true" />}
+            {hasErrors ? 'Please fix the highlighted fields.' : 'You have unsaved changes.'}
+          </div>
+        )}
 
-        <Section title="Start and Due Date" icon={<FiCalendar aria-hidden="true" />}>
-          <SwitchRow label="Absolute Date" description="Set fixed calendar dates instead of relative offsets" checked={!!form.absoluteDate} onChange={(v) => set('absoluteDate', v)} />
-          {form.absoluteDate ? (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              <label className="field-label">Start Date<input type="date" className="input" value={form.startDate || ''} onChange={(e) => set('startDate', e.target.value)} /></label>
-              <label className="field-label">Due Date
-                <input type="date" className={cx('input', errors.dueDate && 'border-danger-700')} value={form.dueDate || ''} min={form.startDate || undefined} onChange={(e) => set('dueDate', e.target.value)} />
-                {errors.dueDate && <span className="text-sm font-normal text-danger-700">{errors.dueDate}</span>}
-              </label>
+        {/* Body */}
+        <form className="min-h-0 flex-1 overflow-y-auto" noValidate onSubmit={(e) => { e.preventDefault(); handleSave(); }}>
+          <Section title="General Information" icon={FileText}>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="jd-templatename">Template Name<span className="ml-0.5 text-danger-700" aria-hidden="true">*</span></Label>
+              <Input id="jd-templatename" value={form.templatename} onChange={(e) => set('templatename', e.target.value)} placeholder="Template Name" aria-invalid={!!errors.templatename} />
+              {errors.templatename && <FieldError>{errors.templatename}</FieldError>}
             </div>
-          ) : (
-            <div className="flex flex-col gap-3">{relRow('Start In', 'startsin', 'startsInDuration')}{relRow('Due In', 'duein', 'dueinduration')}</div>
-          )}
-        </Section>
+            <ShortcodeTextField label="Job Name" required value={form.jobName} onChange={(v) => set('jobName', v)} placeholder="Job Name" shortcuts={accountShortcuts} error={errors.jobName} />
+          </Section>
 
-        <Section title="Client-Facing Status" icon={<FiEye aria-hidden="true" />}>
-          <SwitchRow label="Show in Client Portal" description="Clients see this job and its status in their portal" checked={!!form.clientFacingStatus} onChange={(v) => set('clientFacingStatus', v)} />
-          {form.clientFacingStatus && (
-            <div className="flex flex-col gap-4">
-              <ShortcodeTextField label="Job Name for Client" value={form.inputText} onChange={(v) => set('inputText', v)} placeholder="Job name for client" shortcuts={accountShortcuts} />
-              <div>
-                <StatusSelect value={form.selectedJob} onChange={pickStatus} statuses={statuses} />
-                {errors.selectedJob && <span className="mt-1 block text-sm text-danger-700">{errors.selectedJob}</span>}
+          <Section title="Assignment" icon={Users}>
+            <MultiSelect label="Job Assignees" placeholder="Job Assignees" options={TEAM_OPTIONS} value={form.assignees} onChange={(v) => set('assignees', v)}
+              renderOption={(o) => (
+                <span className="flex flex-1 items-center gap-2.5"><Avatar text={initials(o.label)} size="sm" />
+                  <span className="min-w-0"><span className="block truncate font-medium">{o.label}</span><span className="block truncate text-xs text-muted-foreground">{o.meta}</span></span></span>
+              )} />
+            <div className="flex flex-col gap-1.5">
+              <span id="jd-priority-label" className="text-sm font-medium">Priority</span>
+              <div role="radiogroup" aria-labelledby="jd-priority-label" className="flex flex-wrap gap-1.5">
+                {TASK_PRIORITIES.map((p) => {
+                  const on = form.priority === p;
+                  return (
+                    <button key={p} type="button" role="radio" aria-checked={on} onClick={() => set('priority', p)}
+                      className={cn('inline-flex h-8 items-center gap-2 rounded-md border px-3 text-sm font-medium shadow-xs transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50',
+                        on ? 'border-primary/40 bg-primary/[0.06] text-foreground ring-1 ring-primary/30' : 'border-input bg-card text-muted-foreground hover:bg-accent hover:text-foreground')}>
+                      <span className={cn('size-2 rounded-full', PRIORITY_DOT[p] || 'bg-muted-foreground/50')} aria-hidden="true" />{p}
+                    </button>
+                  );
+                })}
               </div>
-              <div>
-                <ShortcodeTextField key={`desc-${form.selectedJob || 'none'}`} label="Description" value={form.clientDescription || ''} onChange={(v) => set('clientDescription', v)} placeholder="Description"
-                  shortcuts={accountShortcuts} multiline rows={4} maxLength={LIMIT} />
-                {canUseStatusText && (
-                  <button type="button" onClick={() => set('clientDescription', selectedStatus.description.slice(0, LIMIT))}
-                    className="btn-link mt-1 inline-flex items-center gap-1.5 px-0 text-sm">
-                    <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: selectedStatus.color }} aria-hidden="true" />
-                    Use the “{selectedStatus.name}” description
-                  </button>
-                )}
+            </div>
+          </Section>
+
+          <Section title="Description" icon={FileText}>
+            <TextEditor ariaLabel="Job description" value={form.description} onChange={(html) => set('description', html)} shortcuts={accountShortcuts} placeholder="Describe the job…" minHeight={150} />
+          </Section>
+
+          <Section title="Start and Due Date" icon={CalendarDays}>
+            <SwitchRow label="Absolute Date" description="Set fixed calendar dates instead of relative offsets" checked={!!form.absoluteDate} onChange={(v) => set('absoluteDate', v)} />
+            {form.absoluteDate ? (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="jd-start">Start Date</Label>
+                  <Input id="jd-start" type="date" value={form.startDate || ''} onChange={(e) => set('startDate', e.target.value)} />
+                </div>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="jd-due">Due Date</Label>
+                  <Input id="jd-due" type="date" value={form.dueDate || ''} min={form.startDate || undefined} onChange={(e) => set('dueDate', e.target.value)} aria-invalid={!!errors.dueDate} />
+                  {errors.dueDate && <FieldError>{errors.dueDate}</FieldError>}
+                </div>
               </div>
-            </div>
-          )}
-        </Section>
+            ) : (
+              <div className="flex flex-col gap-3">{relRow('Start In', 'startsin', 'startsInDuration')}{relRow('Due In', 'duein', 'dueinduration')}</div>
+            )}
+          </Section>
 
-        <Section title="Comments" icon={<FiMessageSquare aria-hidden="true" />}>
-          {form.comments.map((comment, index) => (
-            <div key={index} className="flex items-start gap-2">
-              <textarea className="input min-h-[64px] flex-1 py-2" rows={2} value={comment} onChange={(e) => handleCommentChange(index, e.target.value)}
-                placeholder={`Comment ${index + 1}`} aria-label={`Comment ${index + 1}`} />
-              <button type="button" onClick={() => deleteCommentField(index)} aria-label={`Delete comment ${index + 1}`}
-                className="mt-1 rounded p-2 text-muted hover:bg-danger-50 hover:text-danger-700"><FiTrash2 aria-hidden="true" /></button>
-            </div>
-          ))}
-          <button type="button" onClick={addCommentField} className="btn w-full border border-dashed border-line-strong bg-surface text-brand-600 hover:bg-subtle"><FiMessageSquare aria-hidden="true" /> Add Comment</button>
-        </Section>
-        <button type="submit" className="hidden" tabIndex={-1} aria-hidden="true" />
-      </form>
+          <Section title="Client-Facing Status" icon={Eye}>
+            <SwitchRow label="Show in Client Portal" description="Clients see this job and its status in their portal" checked={!!form.clientFacingStatus} onChange={(v) => set('clientFacingStatus', v)} />
+            {form.clientFacingStatus && (
+              <div className="flex flex-col gap-5">
+                <ShortcodeTextField label="Job Name for Client" value={form.inputText} onChange={(v) => set('inputText', v)} placeholder="Job name for client" shortcuts={accountShortcuts} />
+                <StatusSelect value={form.selectedJob} onChange={pickStatus} statuses={statuses} error={errors.selectedJob} />
+                <div className="flex flex-col gap-1.5">
+                  <ShortcodeTextField key={`desc-${form.selectedJob || 'none'}`} label="Description" value={form.clientDescription || ''} onChange={(v) => set('clientDescription', v)} placeholder="Description"
+                    shortcuts={accountShortcuts} multiline rows={4} maxLength={LIMIT} />
+                  {canUseStatusText && (
+                    <button type="button" onClick={() => set('clientDescription', selectedStatus.description.slice(0, LIMIT))}
+                      className="inline-flex w-fit items-center gap-1.5 rounded text-xs font-medium text-primary underline-offset-4 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
+                      <span className="size-2 rounded-full" style={{ backgroundColor: selectedStatus.color }} aria-hidden="true" />
+                      Use the “{selectedStatus.name}” description
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+          </Section>
 
-      {/* Footer actions */}
-      <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-2.5 border-t border-line bg-subtle px-5 py-4 sm:px-6">
-        {editingId ? <button type="button" onClick={() => setModal('delete')} className="inline-flex min-h-[44px] items-center gap-2 rounded px-3 font-semibold text-danger-700 hover:bg-danger-50"><FiTrash2 aria-hidden="true" /> Delete</button> : <span />}
-        <div className="flex flex-wrap gap-2">
-          <button type="button" className="btn-secondary" onClick={handleCloseJobTemp} disabled={submitting}>Cancel</button>
-          <button type="button" className="btn border border-brand-600 bg-brand-50 text-brand-600 hover:bg-brand-100" onClick={handleSave} disabled={submitting}>{submitting ? 'Saving…' : 'Save'}</button>
-          <button type="button" className="btn-primary" onClick={handleSaveAndExit} disabled={submitting}>{submitting ? 'Saving…' : 'Save & Exit'}</button>
+          <Section title="Comments" icon={MessageSquare}>
+            {form.comments.map((comment, index) => (
+              <div key={index} className="flex items-start gap-1.5">
+                <Textarea className="min-h-[64px] flex-1" rows={2} value={comment} onChange={(e) => handleCommentChange(index, e.target.value)}
+                  placeholder={`Comment ${index + 1}`} aria-label={`Comment ${index + 1}`} />
+                <SimpleTooltip label="Delete comment">
+                  <Button type="button" variant="ghost" size="icon-sm" onClick={() => deleteCommentField(index)} aria-label={`Delete comment ${index + 1}`}
+                    className="mt-0.5 text-muted-foreground hover:bg-danger-50 hover:text-danger-700"><Trash2 /></Button>
+                </SimpleTooltip>
+              </div>
+            ))}
+            <Button type="button" variant="outline" onClick={addCommentField} className="w-full border-dashed text-muted-foreground shadow-none hover:text-foreground"><Plus />Add Comment</Button>
+          </Section>
+          <button type="submit" className="hidden" tabIndex={-1} aria-hidden="true" />
+        </form>
+
+        {/* Footer actions */}
+        <div className="flex flex-none flex-wrap items-center justify-between gap-2 border-t bg-subtle px-6 py-3.5">
+          {editingId ? <Button variant="ghost" onClick={() => setModal('delete')} className="text-danger-700 hover:bg-danger-50 hover:text-danger-700"><Trash2 />Delete</Button> : <span />}
+          <div className="flex flex-wrap gap-2">
+            <Button variant="ghost" onClick={handleCloseJobTemp} disabled={submitting}>Cancel</Button>
+            <Button variant="outline" onClick={handleSave} disabled={submitting}>{submitting ? 'Saving…' : 'Save'}</Button>
+            <Button onClick={handleSaveAndExit} disabled={submitting}>{submitting ? 'Saving…' : 'Save & Exit'}</Button>
+          </div>
         </div>
       </div>
-      {note && <div role="status" className="fixed left-1/2 top-6 z-[60] -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{note}</div>}
+      <ToastBridge message={note} />
 
       {modal === 'discard' && (
         <Modal title="Discard changes?" onClose={() => setModal(null)}
-          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Keep editing</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={onClose}>Discard</button></>}>
-          <p className="text-muted">Your changes to this job template haven't been saved.</p>
+          footer={<><Button variant="outline" onClick={() => setModal(null)}>Keep editing</Button><Button variant="destructive" onClick={onClose}>Discard</Button></>}>
+          <p className="text-sm text-muted-foreground">Your changes to this job template haven't been saved.</p>
         </Modal>
       )}
       {modal === 'delete' && (
         <Modal title={`Delete “${form.templatename}”?`} onClose={() => setModal(null)}
-          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={() => { deleteJobTemplates([editingId]); onDone?.(`Deleted “${saved.templatename}”`); }}>Delete</button></>}>
-          <p className="text-muted">Jobs already created from this template stay as they are.</p>
+          footer={<><Button variant="outline" onClick={() => setModal(null)}>Cancel</Button><Button variant="destructive" onClick={() => { deleteJobTemplates([editingId]); onDone?.(`Deleted “${saved.templatename}”`); }}><Trash2 />Delete</Button></>}>
+          <p className="text-sm text-muted-foreground">Jobs already created from this template stay as they are.</p>
         </Modal>
       )}
     </Drawer>

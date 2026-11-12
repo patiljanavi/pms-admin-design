@@ -8,6 +8,7 @@ import { useData } from '../../context/DataContext';
 import {
   ALLOWED_EXTENSIONS, EMAIL_MODES, MAX_FILE_SIZE, SENDERS, emptyEmailTemplate, formatSize, shortcutsForMode,
 } from '../../data/emailTemplates';
+import { ToastBridge } from './ui/sonner';
 
 const LIST_PATH = '/firmtemp/templates/emails';
 const clone = (o) => JSON.parse(JSON.stringify(o));
@@ -125,11 +126,11 @@ function FormPage({ editingId }) {
       <header className="flex flex-wrap items-center gap-4">
         <button onClick={handleCancel} aria-label="Back to email templates" className="flex h-10 w-10 items-center justify-center rounded border border-line-strong bg-surface hover:bg-subtle"><FiArrowLeft size={18} /></button>
         <div className="min-w-0 flex-1">
-          <nav aria-label="Breadcrumb" className="text-sm text-muted">
+          <nav aria-label="Breadcrumb" className="text-sm text-muted-foreground">
             <Link to="/firmtemp/templates" className="hover:underline">Firm Templates</Link> / <Link to={LIST_PATH} className="hover:underline">Emails</Link>
           </nav>
           <h1 className="truncate text-2xl font-bold sm:text-3xl">{editingId ? 'Edit Email Template' : 'Create Email Template'}</h1>
-          <p className="text-muted">Configure your email template settings</p>
+          <p className="text-muted-foreground">Configure your email template settings</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {editingId && <button type="button" className="btn border border-danger-200 bg-surface text-danger-700 hover:bg-danger-50" onClick={() => setModal('delete')} disabled={saving}><FiTrash2 aria-hidden="true" /> Delete</button>}
@@ -163,7 +164,7 @@ function FormPage({ editingId }) {
                   </label>
                 ))}
               </div>
-              <p className="mt-2 text-sm text-muted">The Subject and Email Body shortcode menus show {form.mode === 'account' ? 'account and date' : 'account, contact and date'} shortcodes.</p>
+              <p className="mt-2 text-sm text-muted-foreground">The Subject and Email Body shortcode menus show {form.mode === 'account' ? 'account and date' : 'account, contact and date'} shortcodes.</p>
             </fieldset>
           </Section>
 
@@ -203,11 +204,11 @@ function FormPage({ editingId }) {
               <input ref={fileInput} type="file" multiple hidden data-testid="attachments-input"
                 accept={ALLOWED_EXTENSIONS.map((e) => `.${e}`).join(',')}
                 onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
-              <FiUpload size={30} className="mb-3 text-muted" aria-hidden="true" />
+              <FiUpload size={30} className="mb-3 text-muted-foreground" aria-hidden="true" />
               <p className="text-sm font-semibold">Drag & drop files here</p>
-              <p className="mt-1 text-xs text-muted">or</p>
+              <p className="mt-1 text-xs text-muted-foreground">or</p>
               <span className="btn-secondary mt-3 min-h-[36px] px-3 text-sm">Browse Files</span>
-              <p className="mt-3 text-xs text-muted">20 MB file size limit. Supported: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG</p>
+              <p className="mt-3 text-xs text-muted-foreground">20 MB file size limit. Supported: PDF, DOC, DOCX, XLS, XLSX, JPG, PNG</p>
             </div>
 
             {fileErrors.length > 0 && (
@@ -220,12 +221,12 @@ function FormPage({ editingId }) {
                 {form.files.map((file, index) => (
                   <div key={file.id} className="flex items-center justify-between gap-2 rounded-md border border-line px-3 py-2">
                     <div className="flex min-w-0 items-center gap-2 text-sm">
-                      <FiFileText className="flex-none text-muted" aria-hidden="true" />
+                      <FiFileText className="flex-none text-muted-foreground" aria-hidden="true" />
                       <span className="truncate">{file.name}</span>
-                      <span className="flex-none text-xs text-muted">({formatSize(file.size)})</span>
+                      <span className="flex-none text-xs text-muted-foreground">({formatSize(file.size)})</span>
                     </div>
                     <button type="button" onClick={() => removeFile(index)} aria-label={`Remove ${file.name}`}
-                      className="flex-none rounded p-1.5 text-muted hover:bg-danger-50 hover:text-danger-700"><FiTrash2 aria-hidden="true" /></button>
+                      className="flex-none rounded p-1.5 text-muted-foreground hover:bg-danger-50 hover:text-danger-700"><FiTrash2 aria-hidden="true" /></button>
                   </div>
                 ))}
               </div>
@@ -236,17 +237,17 @@ function FormPage({ editingId }) {
 
       {modal === 'discard' && (
         <Modal title="Discard changes?" onClose={() => setModal(null)}
-          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Keep editing</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={() => navigate(LIST_PATH)}>Discard</button></>}>
-          <p className="text-muted">Your changes to this email template haven't been saved.</p>
+          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Keep editing</button><button className="btn-danger" onClick={() => navigate(LIST_PATH)}>Discard</button></>}>
+          <p className="text-muted-foreground">Your changes to this email template haven't been saved.</p>
         </Modal>
       )}
       {modal === 'delete' && (
         <Modal title={`Delete “${existing?.templateName}”?`} onClose={() => setModal(null)}
-          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button><button className="btn bg-danger-700 text-white hover:bg-[#831E15]" onClick={() => { deleteEmailTemplates([editingId]); navigate(LIST_PATH, { state: { toast: `Deleted “${existing.templateName}”` } }); }}>Delete</button></>}>
-          <p className="text-muted">Emails already sent from this template are not affected.</p>
+          footer={<><button className="btn-secondary" onClick={() => setModal(null)}>Cancel</button><button className="btn-danger" onClick={() => { deleteEmailTemplates([editingId]); navigate(LIST_PATH, { state: { toast: `Deleted “${existing.templateName}”` } }); }}>Delete</button></>}>
+          <p className="text-muted-foreground">Emails already sent from this template are not affected.</p>
         </Modal>
       )}
-      {toast && <div role="status" className="fixed left-1/2 top-6 z-50 -translate-x-1/2 rounded-md bg-ink px-5 py-3 font-semibold text-white">{toast}</div>}
+      <ToastBridge message={toast} />
     </div>
   );
 }

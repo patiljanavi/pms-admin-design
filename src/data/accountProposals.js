@@ -8,7 +8,7 @@ const nid = () => `ap-${Date.now().toString(36)}${(seq += 1).toString(36)}${Math
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 export const PROPOSAL_STATUS = {
-  draft: { label: 'Draft', tone: 'bg-subtle text-muted' },
+  draft: { label: 'Draft', tone: 'bg-subtle text-muted-foreground' },
   sent: { label: 'Waiting for signature', tone: 'bg-brand-100 text-brand-800' },
   signed: { label: 'Signed', tone: 'bg-success-50 text-success-700' },
 };
