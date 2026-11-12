@@ -9,11 +9,13 @@ import Sidebar, { MOD } from './Sidebar';
 import CommandMenu from './CommandMenu';
 import { Modal } from './ui';
 import { Sheet, SheetContent, SheetTitle } from './ui/sheet';
+import { useOutletContext } from 'react-router-dom';
+
 import { toast } from './ui/sonner';
 import AddAccountDrawer from '../pages/Accounts-Contacts/AddAccountDrawer';
 import ContactDrawer from '../pages/Accounts-Contacts/ContactDrawer';
 import JobDrawer from './workflow/JobDrawer';
-
+import InvoiceDrawer from '../components/invoices/AccountInvoiceDrawer';
 const KEY = 'harbor.sidebarCollapsed';
 
 const SHORTCUTS = [
@@ -31,6 +33,8 @@ const typing = (el) => el && (el.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$
 /** Signed-in frame: sidebar · header (breadcrumbs, search, New) · page. */
 export default function AppLayout() {
   const { user, signOut } = useAuth();
+    const { invoices = [], nextInvoiceNumber, createInvoice, updateInvoice, deleteInvoices, setInvoiceStatus, printInvoice, downloadInvoice } = useData();
+   
   const navigate = useNavigate();
   const { pathname } = useLocation();
   const { tags, createTag, addAccount } = useData();
@@ -78,7 +82,14 @@ export default function AppLayout() {
     document.addEventListener('keydown', onKey);
     return () => document.removeEventListener('keydown', onKey);
   }, [create]);
+    const notify = (m) => { setToast(m); setTimeout(() => setToast(''), 2600); };
+  const [toast, setToast] = useState('');
 
+ const save = (form, { send }) => {
+    const rec = createDrawer?.invoice ? updateInvoice(form) : createInvoice(form, { send });
+    setCreateDrawer(null);
+    notify(createDrawer?.invoice ? `Updated ${rec.number}` : `${send ? 'Sent' : 'Saved draft'} ${rec.number}`);
+  };
   const logout = () => { signOut(); navigate('/login', { replace: true }); };
   const sidebarProps = { onSignOut: logout, user, onOpenSearch: () => setSearchOpen(true), onShortcuts: () => setShortcutsOpen(true) };
 
@@ -134,6 +145,9 @@ export default function AppLayout() {
       {createDrawer === 'job' && (
         <JobDrawer jobId="new" onClose={() => setCreateDrawer(null)}
           onDone={(message) => { setCreateDrawer(null); if (message) toast.success(message); }} />
+      )}
+      {createDrawer === 'invoice' && (
+        <InvoiceDrawer accountId={ null} invoice={createDrawer.invoice || null} nextNumber={nextInvoiceNumber} onClose={() => setCreateDrawer(null)} onSave={save} />
       )}
     </div>
   );

@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react';
 import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import {
-  Check, ChevronDown, ChevronsUpDown, HelpCircle, Keyboard, LogOut, Monitor, Moon, PanelLeftClose, PanelLeftOpen,
-  Search, Settings, Sparkles, Sun, UserRound,
+   ChevronDown, ChevronsUpDown, HelpCircle, Keyboard, LogOut, Monitor, Moon, PanelLeftClose, PanelLeftOpen,
+  Search, Sun, UserRound,
+  // Check, Settings, Sparkles,
 } from 'lucide-react';
 import { MENU, MENU_GROUPS, MY_ACCOUNT_PATH } from '../config';
 import { useAppearance } from '../context/AppearanceContext';
@@ -50,13 +51,13 @@ function WorkspaceSwitcher({ collapsed }) {
           <>
             <span className="min-w-0 flex-1 leading-tight">
               <span className="block truncate text-sm font-semibold">Harbor</span>
-              <span className="block truncate text-xs text-sidebar-muted">Bennett &amp; Co. CPAs</span>
+              {/* <span className="block truncate text-xs text-sidebar-muted">Bennett &amp; Co. CPAs</span> */}
             </span>
             <ChevronsUpDown className="size-4 text-sidebar-muted" />
           </>
         )}
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="start" side={collapsed ? 'right' : 'bottom'} className="w-64">
+      {/* <DropdownMenuContent align="start" side={collapsed ? 'right' : 'bottom'} className="w-64">
         <DropdownMenuLabel>Workspaces</DropdownMenuLabel>
         <DropdownMenuItem>{mark}<span className="flex-1">Bennett &amp; Co. CPAs</span><Check className="text-primary" /></DropdownMenuItem>
         <DropdownMenuItem>
@@ -66,7 +67,7 @@ function WorkspaceSwitcher({ collapsed }) {
         <DropdownMenuSeparator />
         <DropdownMenuItem><Settings />Workspace settings</DropdownMenuItem>
         <DropdownMenuItem><Sparkles />Upgrade plan</DropdownMenuItem>
-      </DropdownMenuContent>
+      </DropdownMenuContent> */}
     </DropdownMenu>
   );
 }
@@ -247,13 +248,13 @@ export default function Sidebar({
         ))}
       </nav>
 
-      {!collapsed && (
+      {/* {!collapsed && (
         <div className="mx-2.5 mb-2 rounded-lg border border-sidebar-border bg-card p-3 shadow-xs">
           <div className="flex items-center gap-2 text-sm font-medium"><Sparkles className="size-4 text-primary" />Trial · 9 days left</div>
           <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted"><div className="h-full w-[70%] rounded-full bg-primary" /></div>
           <button type="button" className="mt-2.5 text-xs font-medium text-primary hover:underline">Upgrade to Pro</button>
         </div>
-      )}
+      )} */}
 
       <div className={cn('flex flex-col gap-1 border-t border-sidebar-border p-2.5', collapsed && 'items-center')}>
         {showCollapse && (

@@ -20,7 +20,7 @@ export const PIPELINES_PATH = '/firmtemp/pipelines';
 export const HOME_PATH = ACCOUNTS_PATH;
 export const WORKFLOW_PIPELINES_PATH = '/pipelines';
 export const WORKFLOW_JOBS_PATH = '/jobs/activejob';
-
+export const BILLING_INVOICES_PATH = '/billing/Invoices';
 /** Account dashboard (opened from an account's name): /clients/accounts/accountsdash/<tab>/<accountId> */
 export const ACCOUNT_DASH_PATH = '/clients/accounts/accountsdash';
 export const ACCOUNT_TABS = [
@@ -125,11 +125,11 @@ export const QUICK_CREATE = [
   { id: 'account', label: 'Account', path: '#', icon: Building2, shortcut: 'A', drawer: 'account' },
   { id: 'contact', label: 'Contact', path: '#', icon: Contact, shortcut: 'C', drawer: 'contact' },
   { id: 'jobs', label: 'Job', path: '#', icon: Briefcase, shortcut: 'J', drawer: 'job' },
-  { id: 'proposal', label: 'Proposal', path: '/billing/proposalsandels/new', icon: FileSignature, to: '/billing/proposalsandels/new' },
-  { id: 'invoice', label: 'Invoice', path: '#', icon: FilePlus2, to: '/billing/Invoices?new=invoice' },
-  { id: 'task', label: 'Task', path: '#', icon: ListTodo, shortcut: 'T', to: `${TASKS_PATH}?new=task` },
-  { id: 'chat', label: 'Chat', path: '#', icon: Send, to: '/internal-communation?new=chat' },
-  { id: 'payment', label: 'Offline Payment', path: '#', icon: CreditCard, to: '/billing/Invoices?new=payment' },
+  { id: 'proposal', label: 'Proposal', path: '#',shortcut:'P', icon: FileSignature, drawer: 'proposal' },
+  { id: 'invoice', label: 'Invoice', path: '#', shortcut: 'I', icon: FilePlus2, drawer: 'invoice' },
+  { id: 'task', label: 'Task', path: '#', icon: ListTodo, shortcut: 'T', drawer: 'task' },
+  { id: 'chat', label: 'Chat', path: '#', icon: Send, shortcut: 'M', drawer: 'chat' },
+  { id: 'payment', label: 'Offline Payment', path: '#', icon: CreditCard, shortcut: 'O', drawer: 'payment' },
 ];
 
 /* ---------- Fonts (Settings → My Account) ---------- */
