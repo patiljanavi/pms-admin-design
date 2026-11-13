@@ -1,7 +1,7 @@
 import { Navigate, Route, Routes } from 'react-router-dom';
 import RequireAuth from './components/RequireAuth';
 import AppLayout from './components/AppLayout';
-import { ACCOUNT_DASH_PATH,menuPaths, ACCOUNTS_PATH, HOME_PATH, INSIGHTS_PATH, MY_ACCOUNT_PATH, TAGS_PATH, TASKS_PATH, CONTACTS_PATH, FIRM_TEMPLATES_PATH,SERVICE_PATH,PIPELINES_PATH,WORKFLOW_PIPELINES_PATH ,WORKFLOW_JOBS_PATH,BILLING_INVOICES_PATH} from './config';
+import { ACCOUNT_DASH_PATH,menuPaths, ACCOUNTS_PATH, HOME_PATH, INSIGHTS_PATH, MY_ACCOUNT_PATH, TAGS_PATH, TASKS_PATH, CONTACTS_PATH, FIRM_TEMPLATES_PATH,SERVICE_PATH,PIPELINES_PATH,WORKFLOW_PIPELINES_PATH ,WORKFLOW_JOBS_PATH,BILLING_INVOICES_PATH,BILLING_PROPOSALS_PATH,TEAMS_COMMUNICATION_PATH} from './config';
 import Login from './pages/Login';
 import Register from './pages/Register';
 import Accounts from './pages/Accounts-Contacts/Accounts';
@@ -45,6 +45,8 @@ import AccountProposalForm from './pages/accountDash/AccountProposalForm';   // 
 import AllJobs from './pages/workflow/AllJobs';    
 import AccountInvoicesTab from 'pages/accountDash/AccountInvoicesTab';
 import BillingInvoices from 'pages/billing/BillingInvoices';
+import BillingProposals from 'pages/billing/BillingProposals';
+import Communication from 'pages/Communication';
 /**
  * Menu paths that already have a real screen (keys in lowercase).
  * Every other menu path shows the Placeholder page.
@@ -81,6 +83,8 @@ const SCREENS = {
   },
   [BILLING_INVOICES_PATH.toLowerCase()]: { Component: BillingInvoices },
    [WORKFLOW_JOBS_PATH.toLowerCase()]: { Component: AllJobs },
+   [BILLING_PROPOSALS_PATH.toLowerCase()]: { Component: BillingProposals },
+   [TEAMS_COMMUNICATION_PATH.toLowerCase()]: { Component: Communication },
     // Workflow → Pipelines (/pipelines): list of pipelines; /pipelines/:pipelineId = Kanban board page
   [WORKFLOW_PIPELINES_PATH.toLowerCase()]: {
     Component: WorkflowPipelinesLayout,

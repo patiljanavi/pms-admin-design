@@ -123,6 +123,7 @@ export default function AutomationDrawer({ stageNumber, stageName, automations: 
     const info = automationInfo(a.type);
     if (info.source) {
       const options = templatesFor(a.type);
+      console.log('options', options, a.selectedtemp, info.source, templatesFor(a.type));
       const current = options.find((o) => String(o.id) === String(a.selectedtemp));
       const missing = errors[i] && !a.selectedtemp;
       return (

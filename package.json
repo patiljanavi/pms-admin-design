@@ -28,6 +28,7 @@
     "cmdk": "^1.1.1",
     "date-fns": "^4.4.0",
     "dayjs": "^1.11.23",
+    "emoji-picker-react": "^5.1.4",
     "jspdf": "^4.2.1",
     "jspdf-autotable": "^5.0.9",
     "lucide-react": "^1.70.0",

@@ -21,8 +21,10 @@ export const HOME_PATH = ACCOUNTS_PATH;
 export const WORKFLOW_PIPELINES_PATH = '/pipelines';
 export const WORKFLOW_JOBS_PATH = '/jobs/activejob';
 export const BILLING_INVOICES_PATH = '/billing/Invoices';
+export const BILLING_PROPOSALS_PATH = '/billing/proposalsandels';
 /** Account dashboard (opened from an account's name): /clients/accounts/accountsdash/<tab>/<accountId> */
 export const ACCOUNT_DASH_PATH = '/clients/accounts/accountsdash';
+export const TEAMS_COMMUNICATION_PATH = '/internal-communication';
 export const ACCOUNT_TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'info', label: 'Info' },
@@ -99,7 +101,7 @@ export const MENU = [
       { id: 'import-docs', label: 'Document Upload', path: '/upload-docs' },
     ],
   },
-  { id: 'communication', label: 'Communication', path: '/internal-communation', icon: MessagesSquare, group: 'workspace', submenu: [] },
+  { id: 'communication', label: 'Communication', path: '/internal-communication', icon: MessagesSquare, group: 'workspace', submenu: [] },
 ];
 
 /** Every unique path in MENU (parents and children), used by App.js to create routes. */
@@ -125,7 +127,8 @@ export const QUICK_CREATE = [
   { id: 'account', label: 'Account', path: '#', icon: Building2, shortcut: 'A', drawer: 'account' },
   { id: 'contact', label: 'Contact', path: '#', icon: Contact, shortcut: 'C', drawer: 'contact' },
   { id: 'jobs', label: 'Job', path: '#', icon: Briefcase, shortcut: 'J', drawer: 'job' },
-  { id: 'proposal', label: 'Proposal', path: '#',shortcut:'P', icon: FileSignature, drawer: 'proposal' },
+  // { id: 'proposal', label: 'Proposal', path: '#',shortcut:'P', icon: FileSignature, drawer: 'proposal' },
+  { id: 'proposal', label: 'Proposal', path: '#', icon: FileSignature, to: '/billing/proposalsandels?new=proposal'  ,shortcut:'P',  },
   { id: 'invoice', label: 'Invoice', path: '#', shortcut: 'I', icon: FilePlus2, drawer: 'invoice' },
   { id: 'task', label: 'Task', path: '#', icon: ListTodo, shortcut: 'T', drawer: 'task' },
   { id: 'chat', label: 'Chat', path: '#', icon: Send, shortcut: 'M', drawer: 'chat' },

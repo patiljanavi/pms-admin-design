@@ -19,5 +19,5 @@ export function statusOptionsFrom(list = []) {
 /** Turns any template list into { id, label } options (templatename / templateName / name). */
 export const templateOptionsFrom = (list = []) => (list || []).map((t) => ({
   id: t.id ?? t._id ?? t.value,
-  label: t.templatename ?? t.templateName ?? t.name ?? t.label ?? 'Untitled',
+  label: t.templatename ?? t.templateName ?? t.name ?? t.label ?? t.general.templateName ??'Untitled',
 }));

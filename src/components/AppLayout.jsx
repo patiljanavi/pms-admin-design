@@ -9,11 +9,12 @@ import Sidebar, { MOD } from './Sidebar';
 import CommandMenu from './CommandMenu';
 import { Modal } from './ui';
 import { Sheet, SheetContent, SheetTitle } from './ui/sheet';
-
+// import NewChatDrawer from './chat/NewChatDrawer';
 import AddAccountDrawer from '../pages/Accounts-Contacts/AddAccountDrawer';
 import ContactDrawer from '../pages/Accounts-Contacts/ContactDrawer';
 import JobDrawer from './workflow/JobDrawer';
 import InvoiceDrawer from '../components/invoices/AccountInvoiceDrawer';
+import TaskDrawer from './workflow/TaskDrawer';
 const KEY = 'harbor.sidebarCollapsed';
 
 const SHORTCUTS = [
@@ -147,6 +148,11 @@ export default function AppLayout() {
       {createDrawer === 'invoice' && (
         <InvoiceDrawer accountId={ null} invoice={createDrawer.invoice || null} nextNumber={nextInvoiceNumber} onClose={() => setCreateDrawer(null)} onSave={save} />
       )}
+      {createDrawer === 'task' && (
+        <TaskDrawer taskId="new" onClose={() => setCreateDrawer(null)}
+          onDone={(message) => { setCreateDrawer(null); if (message) toast.success(message); }} />
+      )}
+      {/* {createDrawer === 'chat' && (<NewChatDrawer defaultAccountIds={[]} onCreate={(accountIds, form) => { setCreateDrawer(null); }} onClose={() => setCreateDrawer(null)} />)} */}
     </div>
   );
 }

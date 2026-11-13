@@ -1,206 +1,351 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
-  CalendarDays, ChevronLeft, ChevronRight, Circle, CircleCheck, CircleDashed, CircleDot, Plus, SearchX, SignalHigh, SignalLow, SignalMedium,
+  AlertCircle, ArrowDown, ArrowUp, ArrowUpDown, CheckCircle2, CheckSquare, ChevronDown, Clock, ExternalLink, Filter, ListChecks, Plus, RotateCcw, Search, SearchX, Trash2, X,
 } from 'lucide-react';
-import { Avatar, Modal, Segmented, cx, initials } from '../components/ui';
-import { PageHeader, SearchInput } from '../components/page';
+
+// shadcn components — one file each in src/components/ui
 import { Badge } from '../components/ui/badge';
 import { Button } from '../components/ui/button';
+import { Checkbox } from '../components/ui/checkbox';
 import { Input } from '../components/ui/input';
 import { Label } from '../components/ui/label';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
-import { toast } from '../components/ui/sonner';
-import { SimpleTooltip } from '../components/ui/tooltip';
-import { seedAccounts, COLUMNS, seedTasks } from '../data/sampleData';
+import {
+  DropdownMenu, DropdownMenuCheckboxItem, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu';
+import { ToastBridge } from '../components/ui/sonner';
 
-const PRIO = {
-  High: { variant: 'danger', icon: SignalHigh },
-  Medium: { variant: 'warning', icon: SignalMedium },
-  Low: { variant: 'neutral', icon: SignalLow },
-};
-// Status icon + colour per column (theme tokens, Linear-style).
-const COL_STYLE = {
-  todo: { icon: CircleDashed, className: 'text-muted-foreground' },
-  doing: { icon: CircleDot, className: 'text-brand-600' },
-  review: { icon: Circle, className: 'text-warning-500' },
-  done: { icon: CircleCheck, className: 'text-success-600' },
-};
-const PEOPLE = seedAccounts.slice(0, 12).map((a) => a.owner);
+// your app components
+import { Avatar, Modal, Segmented, initials } from '../components/ui';
+import { EmptyState, StatCard } from '../components/page';
+import RowActionsMenu from '../components/RowActionsMenu';
+import { BulkBar, HeaderCheckbox, SelectCheckbox, useSelection } from '../components/TableSelection';
+import Pagination, { usePagination } from '../components/Pagination';
+import TaskDrawer, { TaskStatusBadge } from '../components/workflow/TaskDrawer';
+import { useData } from '../context/DataContext';
+import { accountTabPath } from '../config';
+import { TEAM_MEMBERS } from '../data/sampleData';
+import { TASK_PRIORITIES } from '../data/taskTemplates';
+import { isCompleted, isTaskOverdue, taskId, tasksOf } from '../data/accountTasks';
+import { fillShortcodes } from '../data/accountChats';
+import { cn } from 'lib/utils';
 
-function FormRow({ label, htmlFor, children }) {
+const ALL = 'all';
+const RANK = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
+const PRIORITY_DOT = { Low: 'bg-muted-foreground/50', Medium: 'bg-blue-500', High: 'bg-amber-500', Urgent: 'bg-red-500' };
+const fmtDate = (d) => (d ? new Date(`${String(d).slice(0, 10)}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—');
+const Dash = () => <span className="text-muted-foreground/60">—</span>;
+
+/* ---------- small table helpers ---------- */
+function SortHead({ label, col, sort, setSort, className }) {
+  const on = sort.col === col;
+  const Icon = !on ? ArrowUpDown : sort.dir === 'asc' ? ArrowUp : ArrowDown;
   return (
-    <div className="grid grid-cols-1 items-center gap-2 sm:grid-cols-[120px_1fr] sm:gap-5">
-      <Label htmlFor={htmlFor}>{label}</Label>
-      <div className="min-w-0">{children}</div>
+    <TableHead className={className} aria-sort={on ? (sort.dir === 'asc' ? 'ascending' : 'descending') : 'none'}>
+      <Button variant="ghost" size="sm" className="-ml-3 h-8 gap-1.5" onClick={() => setSort((s) => ({ col, dir: s.col === col && s.dir === 'asc' ? 'desc' : 'asc' }))}>
+        {label}<Icon className={cn('size-3.5', !on && 'opacity-40')} aria-hidden="true" />
+      </Button>
+    </TableHead>
+  );
+}
+function NameCell({ icon: Icon, name, preview, onOpen, done }) {
+  return (
+    <div className="flex items-start gap-2.5">
+      <span className="mt-0.5 inline-flex size-8 flex-none items-center justify-center rounded-lg border bg-subtle text-muted-foreground" aria-hidden="true"><Icon className="size-4" /></span>
+      <div className="min-w-0">
+        <button type="button" onClick={onOpen} className={cn('max-w-full truncate text-left font-medium text-foreground underline-offset-4 hover:underline', done && 'text-muted-foreground line-through')}>{name}</button>
+        {preview && <p className="truncate text-xs text-muted-foreground">{preview}</p>}
+      </div>
     </div>
   );
 }
-
-export default function Tasks() {
-  const [tasks, setTasks] = useState(seedTasks);
+function CheckFilter({ label, options, value, onChange, searchable = false }) {
   const [q, setQ] = useState('');
-  const [dragId, setDragId] = useState(null);
-  const [over, setOver] = useState(null);
-  const [draft, setDraft] = useState(null); // new task form
+  const shown = searchable && q.trim() ? options.filter((o) => o.label.toLowerCase().includes(q.trim().toLowerCase())) : options;
+  const toggle = (v) => onChange(value.includes(v) ? value.filter((x) => x !== v) : [...value, v]);
+  return (
+    <DropdownMenu onOpenChange={(o) => !o && setQ('')}>
+      <DropdownMenuTrigger asChild>
+        <Button variant="outline" size="sm" className="h-8 border-dashed" aria-label={`Filter by ${label.toLowerCase()}`}>
+          <Filter aria-hidden="true" />{label}
+          {value.length > 0 && <Badge variant="secondary" className="ml-1 rounded-sm px-1.5 font-normal">{value.length}</Badge>}
+          <ChevronDown className="opacity-50" aria-hidden="true" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="start" className="w-64">
+        <DropdownMenuLabel>{label}</DropdownMenuLabel>
+        {searchable && (
+          <div className="px-2 pb-2">
+            <Input value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.stopPropagation()} placeholder={`Search ${label.toLowerCase()}`} aria-label={`Search ${label.toLowerCase()}`} className="h-8" />
+          </div>
+        )}
+        <DropdownMenuSeparator />
+        <div className="max-h-64 overflow-y-auto">
+          {shown.map((o) => (
+            <DropdownMenuCheckboxItem key={o.value} checked={value.includes(o.value)} onCheckedChange={() => toggle(o.value)} onSelect={(e) => e.preventDefault()}>{o.label}</DropdownMenuCheckboxItem>
+          ))}
+          {!shown.length && <p className="px-2 py-3 text-center text-sm text-muted-foreground">No matches</p>}
+        </div>
+        {value.length > 0 && (<><DropdownMenuSeparator /><DropdownMenuItem onSelect={() => onChange([])} className="justify-center">Clear</DropdownMenuItem></>)}
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
 
-  const move = (id, col) => setTasks((ts) => ts.map((t) => (t.id === id ? { ...t, col } : t)));
-  const visible = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    return tasks.filter((t) => !s || `${t.title} ${t.tag} ${t.who}`.toLowerCase().includes(s));
-  }, [tasks, q]);
+/**
+ * Workflow → Tasks: every account's tasks (saved on each account: account.tasks, else the demo tasks).
+ * Pending / Completed (?view=completed) · search · Account · Assignee · Priority · Overdue only ·
+ * sort · select rows · bulk Mark as completed / Reopen / Delete · Create / Edit (TaskDrawer) · pagination.
+ * ?new=task opens "Create Task"; ?account=<id> pre-sets the account filter.
+ */
+export default function Tasks() {
+  const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
+  const { accounts = [], setAccounts, taskTemplates = [], jobs = [], pipelines = [] } = useData();
+  const view = params.get('view') === 'completed' ? 'completed' : 'pending';
 
-  const saveTask = () => {
-    setTasks((ts) => [...ts, { id: `T-${200 + ts.length}`, title: draft.title.trim() || 'Untitled task', tag: 'New', priority: draft.priority, col: draft.col, who: draft.who, due: '[Due date]' }]);
-    toast.success(`Task added to ${COLUMNS.find((c) => c.key === draft.col)?.label || 'the board'}`);
-    setDraft(null);
-  };
-  const newTask = (col = 'todo') => setDraft({ title: '', who: PEOPLE[0], priority: 'Medium', col });
+  const [q, setQ] = useState('');
+  const [accountIds, setAccountIds] = useState(() => (params.get('account') ? [params.get('account')] : []));
+  const [assignees, setAssignees] = useState([]);
+  const [priority, setPriority] = useState(ALL);
+  const [overdueOnly, setOverdueOnly] = useState(false);
+  const [sort, setSort] = useState({ col: 'due', dir: 'asc' });
+  const [drawer, setDrawer] = useState(null);              // { task? }
+  const [confirm, setConfirm] = useState(null);            // tasks to delete
+  const [note, setNote] = useState('');
+  const notify = (m) => { setNote(m); setTimeout(() => setNote(''), 2400); };
+  const selection = useSelection();
 
-  // ?new=task (from the quick panel) opens the New task form
-  const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
-    if (searchParams.get('new') === 'task') {
-      setDraft({ title: '', who: PEOPLE[0], priority: 'Medium', col: 'todo' });
-      const next = new URLSearchParams(searchParams); next.delete('new'); setSearchParams(next, { replace: true });
-    }
-  }, [searchParams, setSearchParams]);
+    if (params.get('new') === 'task') { setDrawer({}); const n = new URLSearchParams(params); n.delete('new'); setParams(n, { replace: true }); }
+  }, [params]); // eslint-disable-line react-hooks/exhaustive-deps
+  const setView = (v) => { setParams((prev) => { const n = new URLSearchParams(prev); if (v === 'completed') n.set('view', 'completed'); else n.delete('view'); return n; }, { replace: true }); selection.clear(); };
 
-  const doneCount = tasks.filter((t) => t.col === 'done').length;
+  /* ---------- every account's tasks ---------- */
+  const all = useMemo(() => accounts.flatMap((a) => tasksOf(a, taskTemplates).map((t) => {
+    const job = jobs.find((j) => j.id === t.jobId) || null;
+    return { ...t, accountId: a.id, accountName: a.name, job, pipelineName: job ? pipelines.find((p) => p.id === job.pipelineId)?.pipelineName || '' : '' };
+  })), [accounts, taskTemplates, jobs, pipelines]);
+
+  /** Change the tasks of the given accounts: fn(list, account) → new list. */
+  const update = (accountIdsToChange, fn) => setAccounts((list) => list.map((a) => (accountIdsToChange.includes(a.id) ? { ...a, tasks: fn(tasksOf(a, taskTemplates), a) } : a)));
+  const saveTask = (form) => {
+    const { accountName, job, pipelineName, ...data } = form;
+    const account = accounts.find((a) => a.id === form.accountId);
+    const existing = form.id ? all.find((t) => t.id === form.id) : null;
+    const now = new Date().toISOString();
+    const rec = {
+      ...data,
+      id: form.id || taskId(),
+      name: account ? fillShortcodes(form.name.trim(), account) : form.name.trim(),
+      description: account ? fillShortcodes(form.description || '', account) : form.description,
+      subtasks: form.subtasksOn ? form.subtasks.filter((s) => s.text.trim()) : [],
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+      completedAt: isCompleted(form) ? (existing?.completedAt || now) : undefined,
+    };
+    const from = existing?.accountId;
+    update([...new Set([form.accountId, from].filter(Boolean))], (list, a) => {
+      const others = list.filter((t) => t.id !== rec.id);
+      return a.id === form.accountId ? (from === a.id ? list.map((t) => (t.id === rec.id ? rec : t)) : [rec, ...others]) : others;
+    });
+    return rec;
+  };
+  const changeStatus = (items, status) => {
+    if (!items.length) return;
+    const ids = new Set(items.map((t) => t.id));
+    const now = new Date().toISOString();
+    update([...new Set(items.map((t) => t.accountId))], (list) => list.map((t) => (ids.has(t.id) ? { ...t, status, updatedAt: now, completedAt: status === 'Completed' ? now : undefined } : t)));
+    selection.setMany([...ids], false);
+    const what = items.length === 1 ? `“${items[0].name}”` : `${items.length} tasks`;
+    notify(status === 'Completed' ? `Completed ${what}` : `Reopened ${what}`);
+  };
+  const remove = (items) => {
+    const ids = new Set(items.map((t) => t.id));
+    update([...new Set(items.map((t) => t.accountId))], (list) => list.filter((t) => !ids.has(t.id)));
+    selection.setMany([...ids], false);
+    notify(items.length > 1 ? `Deleted ${items.length} tasks` : 'Task deleted');
+  };
+
+  /* ---------- filter · sort · pagination ---------- */
+  const pending = all.filter((t) => !isCompleted(t));
+  const completed = all.filter(isCompleted);
+  const inView = view === 'completed' ? completed : pending;
+  const filtered = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    const val = {
+      name: (t) => t.name.toLowerCase(), account: (t) => t.accountName.toLowerCase(), job: (t) => (t.job?.name || '~').toLowerCase(),
+      status: (t) => t.status, priority: (t) => RANK[t.priority] ?? 9, due: (t) => t.dueDate || '9999-12-31', completed: (t) => t.completedAt || '',
+    }[sort.col] || ((t) => t.dueDate || '');
+    return inView
+      .filter((t) => (!s || `${t.name} ${t.accountName} ${t.job?.name || ''} ${(t.assignees || []).join(' ')}`.toLowerCase().includes(s))
+        && (!accountIds.length || accountIds.includes(t.accountId))
+        && (!assignees.length || assignees.some((m) => (t.assignees || []).includes(m)))
+        && (priority === ALL || t.priority === priority)
+        && (!overdueOnly || view !== 'pending' || isTaskOverdue(t)))
+      .sort((a, b) => { const x = val(a); const y = val(b); return (x < y ? -1 : x > y ? 1 : 0) * (sort.dir === 'asc' ? 1 : -1); });
+  }, [inView, q, accountIds, assignees, priority, overdueOnly, view, sort]);
+  const paging = usePagination(filtered, { initialSize: 25, storageKey: 'tasks' });
+  const { pageItems: rows, setPage } = paging;
+  useEffect(() => { setPage(1); }, [view]); // eslint-disable-line react-hooks/exhaustive-deps
+  const selected = filtered.filter((t) => selection.has(t.id));
+  const filtersOn = q || accountIds.length || assignees.length || priority !== ALL || overdueOnly;
+  const reset = () => { setQ(''); setAccountIds([]); setAssignees([]); setPriority(ALL); setOverdueOnly(false); setPage(1); };
+  const p1 = (fn) => (v) => { fn(v); setPage(1); };
 
   return (
-    <div className="page">
-      <PageHeader title="Tasks" description="Everything your team is working on, from to-do to done. Drag cards between columns to update them."
-        actions={<SimpleTooltip label="New task" shortcut="T"><Button onClick={() => newTask()}><Plus />New task</Button></SimpleTooltip>} />
-
-      <div className="flex flex-wrap items-center gap-3">
-        <SearchInput value={q} onChange={setQ} placeholder="Search tasks, tags or people" label="Search tasks" className="h-8 w-full sm:w-80" />
-        <span className="text-sm text-muted-foreground">{visible.length} tasks · drag cards between columns</span>
-        <span className="ml-auto hidden items-center gap-2 text-sm text-muted-foreground md:inline-flex">
-          <CircleCheck className="size-4 text-success-600" aria-hidden="true" />
-          <span className="tabular-nums">{doneCount} of {tasks.length} done</span>
-        </span>
+    <div className="flex flex-col gap-6">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <p className="text-sm text-muted-foreground">Workflow / Tasks</p>
+          <h1 className="text-3xl font-semibold tracking-tight">Tasks</h1>
+          <p className="text-muted-foreground">Tasks for every account.</p>
+        </div>
+        <Button onClick={() => setDrawer({})}><Plus />New task</Button>
       </div>
 
-      {q && visible.length === 0 && (
-        <div className="flex items-center gap-3 rounded-lg border border-dashed bg-card px-4 py-3 text-sm text-muted-foreground">
-          <SearchX className="size-4" aria-hidden="true" />No tasks match “{q}”.
-          <Button variant="link" size="sm" className="h-auto px-0" onClick={() => setQ('')}>Clear search</Button>
-        </div>
-      )}
-
-      <div className="-mx-1 overflow-x-auto px-1 pb-2">
-        <div className="grid min-w-[1000px] grid-cols-4 gap-4">
-          {COLUMNS.map((c, ci) => {
-            const cards = visible.filter((t) => t.col === c.key);
-            const style = COL_STYLE[c.key] || COL_STYLE.todo;
-            const ColIcon = style.icon;
-            const isOver = over === c.key;
-            return (
-              <section key={c.key} aria-label={c.label}
-                onDragOver={(e) => { e.preventDefault(); if (over !== c.key) setOver(c.key); }}
-                onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setOver(null); }}
-                onDrop={(e) => { e.preventDefault(); if (dragId) move(dragId, c.key); setDragId(null); setOver(null); }}
-                className={cx('flex min-h-[460px] flex-col gap-2 rounded-xl border p-2 transition-colors',
-                  isOver ? 'border-dashed border-primary bg-primary/[0.05]' : 'bg-muted/50')}>
-                <div className="flex items-center gap-2 px-1.5 pb-1 pt-0.5">
-                  <ColIcon className={cx('size-4', style.className)} aria-hidden="true" />
-                  <h2 className="flex-1 text-sm font-semibold">{c.label}</h2>
-                  <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-md bg-card px-1.5 text-xs font-medium tabular-nums text-muted-foreground shadow-xs ring-1 ring-inset ring-border">{cards.length}</span>
-                  <SimpleTooltip label={`Add task to ${c.label}`}>
-                    <Button variant="ghost" size="icon-xs" onClick={() => newTask(c.key)} aria-label={`Add task to ${c.label}`} className="text-muted-foreground"><Plus /></Button>
-                  </SimpleTooltip>
-                </div>
-                {cards.map((t) => {
-                  const p = PRIO[t.priority] || PRIO.Low;
-                  const PIcon = p.icon;
-                  return (
-                    <article key={t.id} draggable
-                      onDragStart={(e) => { setDragId(t.id); e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', t.id); }}
-                      onDragEnd={() => { setOver(null); setDragId(null); }}
-                      className={cx('group flex cursor-grab flex-col gap-2.5 rounded-lg border bg-card p-3 shadow-xs transition-[border-color,box-shadow,opacity] hover:border-line-strong hover:shadow-raised active:cursor-grabbing',
-                        dragId === t.id && 'opacity-50')}>
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="font-mono text-[11px] text-muted-foreground">{t.id}</span>
-                        <Badge variant="neutral">{t.tag}</Badge>
-                      </div>
-                      <div className="text-sm font-medium leading-snug">{t.title}</div>
-                      <div className="flex items-center gap-2">
-                        <Badge variant={p.variant} className="gap-1"><PIcon aria-hidden="true" />{t.priority}</Badge>
-                        <span className="inline-flex flex-1 items-center gap-1 truncate text-xs text-muted-foreground">
-                          <CalendarDays className="size-3.5 flex-none" aria-hidden="true" />Due {t.due}
-                        </span>
-                        <div className="flex items-center opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100">
-                          {ci > 0 && (
-                            <SimpleTooltip label={`Move to ${COLUMNS[ci - 1].label}`}>
-                              <Button variant="ghost" size="icon-xs" onClick={() => move(t.id, COLUMNS[ci - 1].key)} aria-label="Move left"><ChevronLeft /></Button>
-                            </SimpleTooltip>
-                          )}
-                          {ci < 3 && (
-                            <SimpleTooltip label={`Move to ${COLUMNS[ci + 1].label}`}>
-                              <Button variant="ghost" size="icon-xs" onClick={() => move(t.id, COLUMNS[ci + 1].key)} aria-label="Move right"><ChevronRight /></Button>
-                            </SimpleTooltip>
-                          )}
-                        </div>
-                        <SimpleTooltip label={t.who}>
-                          <span className="rounded-full ring-2 ring-card"><Avatar text={initials(t.who)} size="xs" /></span>
-                        </SimpleTooltip>
-                      </div>
-                    </article>
-                  );
-                })}
-                {cards.length === 0 && (
-                  <div className={cx('flex flex-1 flex-col items-center justify-center gap-1 rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground transition-colors',
-                    isOver && 'border-primary/50 text-primary')}>
-                    Drop a card here
-                  </div>
-                )}
-                {cards.length > 0 && (
-                  <button type="button" onClick={() => newTask(c.key)}
-                    className="flex h-8 items-center gap-1.5 rounded-md px-2 text-sm text-muted-foreground transition-colors hover:bg-card hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/50">
-                    <Plus className="size-4" aria-hidden="true" />New task
-                  </button>
-                )}
-              </section>
-            );
-          })}
-        </div>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4 lg:gap-4">
+        <StatCard label="Pending" value={pending.length} icon={Clock} />
+        <StatCard label="Overdue" value={pending.filter((t) => isTaskOverdue(t)).length} icon={AlertCircle} />
+        <StatCard label="Due this week" value={pending.filter((t) => t.dueDate && !isTaskOverdue(t) && (new Date(`${t.dueDate}T00:00:00`) - Date.now()) / 86400000 <= 7).length} icon={ListChecks} />
+        <StatCard label="Completed" value={completed.length} icon={CheckCircle2} />
       </div>
 
-      {draft && (
-        <Modal title="New task" description="Add a card to the board. You can drag it to another column later." onClose={() => setDraft(null)} width="max-w-[600px]"
-          footer={<><Button variant="outline" onClick={() => setDraft(null)}>Cancel</Button><Button onClick={saveTask}><Plus />Add task</Button></>}>
-          <div className="flex flex-col gap-4">
-            <FormRow label="Title *" htmlFor="task-title">
-              <Input id="task-title" value={draft.title} onChange={(e) => setDraft({ ...draft, title: e.target.value })} placeholder="What needs doing?" />
-            </FormRow>
-            <FormRow label="Assignee">
-              <Select value={draft.who} onValueChange={(v) => setDraft({ ...draft, who: v })}>
-                <SelectTrigger aria-label="Assignee"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {PEOPLE.map((p) => (
-                    <SelectItem key={p} value={p}><span className="flex items-center gap-2"><Avatar text={initials(p)} size="xs" />{p}</span></SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </FormRow>
-            <FormRow label="Priority">
-              <Segmented label="Priority" options={['High', 'Medium', 'Low']} value={draft.priority} onChange={(v) => setDraft({ ...draft, priority: v })} />
-            </FormRow>
-            <FormRow label="Column">
-              <Select value={draft.col} onValueChange={(v) => setDraft({ ...draft, col: v })}>
-                <SelectTrigger aria-label="Column"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  {COLUMNS.map((c) => {
-                    const Icon = (COL_STYLE[c.key] || COL_STYLE.todo).icon;
-                    return <SelectItem key={c.key} value={c.key}><span className="flex items-center gap-2"><Icon className={cx('size-4', COL_STYLE[c.key]?.className)} />{c.label}</span></SelectItem>;
-                  })}
-                </SelectContent>
-              </Select>
-            </FormRow>
+      <section className="overflow-hidden rounded-xl border bg-card shadow-card" aria-label={view === 'completed' ? 'Completed tasks' : 'Pending tasks'}>
+        {/* Pending / Completed + filters */}
+        <div className="flex flex-wrap items-center gap-2 border-b px-4 py-3">
+          <Segmented label="Task lists" size="sm" value={view} onChange={setView}
+            options={[['pending', 'Pending', pending.length], ['completed', 'Completed', completed.length]].map(([k, l, n]) => ({
+              value: k, label: <>{l}<span className="text-xs tabular-nums text-muted-foreground">{n}</span></>,
+            }))} />
+          <div className="relative w-full sm:w-64">
+            <Search className="absolute left-2.5 top-2 size-4 text-muted-foreground" aria-hidden="true" />
+            <Input value={q} onChange={(e) => { setQ(e.target.value); setPage(1); }} placeholder="Search task, account, job…" aria-label="Search tasks" className="h-8 pl-8" />
           </div>
+          <CheckFilter label="Account" searchable options={accounts.map((a) => ({ value: a.id, label: a.name }))} value={accountIds} onChange={p1(setAccountIds)} />
+          <CheckFilter label="Assignee" options={TEAM_MEMBERS.map((m) => ({ value: m.label, label: m.label }))} value={assignees} onChange={p1(setAssignees)} />
+          <Select value={priority} onValueChange={p1(setPriority)}>
+            <SelectTrigger className="h-8 w-[150px]" aria-label="Priority"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              <SelectItem value={ALL}>All priorities</SelectItem>
+              {TASK_PRIORITIES.map((p) => <SelectItem key={p} value={p}>{p}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          {view === 'pending' && (
+            <div className="flex h-8 items-center gap-2 rounded-md border px-2.5">
+              <Checkbox id="overdue-only" checked={overdueOnly} onCheckedChange={(v) => { setOverdueOnly(!!v); setPage(1); }} />
+              <Label htmlFor="overdue-only" className="text-sm font-normal">Overdue only</Label>
+            </div>
+          )}
+          {filtersOn ? <Button variant="ghost" size="sm" onClick={reset} className="text-muted-foreground">Reset<X /></Button> : null}
+          <span className="ml-auto text-sm tabular-nums text-muted-foreground" data-testid="task-count">{filtered.length} of {inView.length} {view} tasks</span>
+        </div>
+
+        <BulkBar count={selection.count} total={filtered.length}
+          onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
+          actions={<>
+            {view === 'pending'
+              ? <Button variant="outline" size="sm" onClick={() => changeStatus(selected, 'Completed')}><CheckCircle2 />Mark as completed</Button>
+              : <Button variant="outline" size="sm" onClick={() => changeStatus(selected, 'No status')}><RotateCcw />Reopen</Button>}
+            <Button variant="outline" size="sm" className="text-destructive hover:text-destructive" onClick={() => setConfirm(selected)}><Trash2 />Delete</Button>
+          </>} />
+
+        <div className="overflow-x-auto">
+          <Table className="min-w-[1180px]" aria-label="Tasks">
+            <TableHeader>
+              <TableRow>
+                <TableHead className="w-10"><HeaderCheckbox selection={selection} pageIds={rows.map((t) => t.id)} /></TableHead>
+                <SortHead label="Task" col="name" sort={sort} setSort={setSort} />
+                <SortHead label="Account" col="account" sort={sort} setSort={setSort} />
+                <SortHead label="Job" col="job" sort={sort} setSort={setSort} />
+                <SortHead label="Status" col="status" sort={sort} setSort={setSort} />
+                <SortHead label="Priority" col="priority" sort={sort} setSort={setSort} />
+                <TableHead>Assignees</TableHead>
+                {view === 'completed' ? <SortHead label="Completed" col="completed" sort={sort} setSort={setSort} /> : <SortHead label="Due" col="due" sort={sort} setSort={setSort} />}
+                <TableHead className="w-12"><span className="sr-only">Actions</span></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {rows.map((t) => {
+                const checked = selection.has(t.id);
+                const overdue = isTaskOverdue(t);
+                const subs = t.subtasks || [];
+                const doneSubs = subs.filter((s) => s.checked).length;
+                return (
+                  <TableRow key={t.id} data-state={checked ? 'selected' : undefined}>
+                    <TableCell><SelectCheckbox label={`Select ${t.name}`} checked={checked} onChange={() => selection.toggle(t.id)} /></TableCell>
+                    <TableCell className="max-w-[300px]">
+                      <NameCell icon={CheckSquare} name={t.name} done={isCompleted(t)} onOpen={() => setDrawer({ task: t })}
+                        preview={subs.length ? <span className="inline-flex items-center gap-1"><ListChecks className="size-3" aria-hidden="true" />{doneSubs}/{subs.length} subtasks</span> : null} />
+                    </TableCell>
+                    <TableCell><button type="button" className="text-left font-medium hover:text-primary hover:underline" onClick={() => navigate(accountTabPath('workflow', t.accountId))}>{t.accountName}</button></TableCell>
+                    <TableCell className="max-w-[200px]">{t.job ? <><div className="truncate text-sm">{t.job.name}</div><div className="truncate text-xs text-muted-foreground">{t.pipelineName}</div></> : <Dash />}</TableCell>
+                    <TableCell><TaskStatusBadge status={t.status} /></TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="gap-1.5 font-medium">
+                        <span className={cn('size-1.5 rounded-full', PRIORITY_DOT[t.priority] || 'bg-muted-foreground/50')} aria-hidden="true" />{t.priority}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      {(t.assignees || []).length ? (
+                        <span className="flex items-center gap-2" title={t.assignees.join(', ')}>
+                          <span className="inline-flex -space-x-1.5">{t.assignees.slice(0, 3).map((m) => <span key={m} className="rounded-full ring-2 ring-card"><Avatar text={initials(m)} size="xs" /></span>)}</span>
+                          <span className="max-w-[110px] truncate text-sm text-muted-foreground">{t.assignees.length === 1 ? t.assignees[0] : `${t.assignees.length} people`}</span>
+                        </span>
+                      ) : <span className="text-sm text-muted-foreground">Unassigned</span>}
+                    </TableCell>
+                    {view === 'completed'
+                      ? <TableCell className="whitespace-nowrap text-sm tabular-nums text-muted-foreground">{fmtDate(t.completedAt)}</TableCell>
+                      : <TableCell className={cn('whitespace-nowrap text-sm tabular-nums', overdue ? 'font-medium text-destructive' : 'text-muted-foreground')}>
+                          {overdue && <AlertCircle className="mr-1 inline size-3.5" aria-label="Overdue" />}{fmtDate(t.dueDate)}
+                        </TableCell>}
+                    <TableCell className="text-right">
+                      <RowActionsMenu label={t.name} onEdit={() => setDrawer({ task: t })} onDelete={() => setConfirm([t])}
+                        extra={[
+                          isCompleted(t)
+                            ? { label: 'Reopen', icon: RotateCcw, onClick: () => changeStatus([t], 'No status') }
+                            : { label: 'Mark as completed', icon: CheckCircle2, onClick: () => changeStatus([t], 'Completed') },
+                          { label: 'Open account', icon: ExternalLink, onClick: () => navigate(accountTabPath('workflow', t.accountId)) },
+                        ]} />
+                    </TableCell>
+                  </TableRow>
+                );
+              })}
+              {filtered.length === 0 && (
+                <TableRow className="hover:bg-transparent">
+                  <TableCell colSpan={9}>
+                    {inView.length ? (
+                      <EmptyState icon={SearchX} title="No tasks match" description="Try a different search or remove some filters."
+                        action={<Button variant="outline" onClick={reset}>Clear filters</Button>} />
+                    ) : view === 'completed' ? (
+                      <EmptyState icon={CheckCircle2} title="No completed tasks yet" description="Tasks you complete move here." />
+                    ) : (
+                      <EmptyState icon={CheckSquare} title="No pending tasks" description="Create a task for an account, or start from a task template."
+                        action={<Button onClick={() => setDrawer({})}><Plus />New task</Button>} />
+                    )}
+                  </TableCell>
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+        </div>
+        {filtered.length > 0 && <Pagination {...paging} label="tasks" />}
+      </section>
+
+      {drawer && (
+        <TaskDrawer task={drawer.task || null} accountId={accountIds.length === 1 ? accountIds[0] : ''} onClose={() => setDrawer(null)}
+          onSave={(form) => { const rec = saveTask(form); setDrawer(null); notify(drawer.task ? `Updated “${rec.name}”` : `Created “${rec.name}”`); }} />
+      )}
+      {confirm && (
+        <Modal title={confirm.length === 1 ? `Delete “${confirm[0].name}”?` : `Delete ${confirm.length} tasks?`} description="This can't be undone." onClose={() => setConfirm(null)}
+          footer={<><Button variant="outline" onClick={() => setConfirm(null)}>Cancel</Button>
+            <Button variant="destructive" onClick={() => { remove(confirm); setConfirm(null); }}><Trash2 />{confirm.length === 1 ? 'Delete task' : 'Delete tasks'}</Button></>}>
+          <ul className="max-h-40 list-disc overflow-y-auto pl-5 text-sm">{confirm.map((t) => <li key={t.id}>{t.name} · {t.accountName}</li>)}</ul>
         </Modal>
       )}
+      <ToastBridge message={note} />
     </div>
   );
 }
