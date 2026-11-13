@@ -628,22 +628,38 @@ export function DataProvider({ children }) {
 
   /* ---------- Jobs (pipeline boards) + stage automations ---------- */
   /** Templates and lookups the automations need. Client-facing statuses are YOUR clientFacingJobs. */
-  const automationCtx = (me) => ({
-    chatTemplates,
-    emailTemplates,
-    organizerTemplates,
-    proposalTemplates,
-    invoiceTemplates,
-    folderTemplates,
-    taskTemplates,
-    statuses: clientFacingJobs,
-    tagById,
-    me: me || "Harbor",
-  });
-  const stageOf = (pipelineId, stageId) =>
-    pipelines
-      .find((p) => p.id === pipelineId)
-      ?.stages.find((s) => s.id === stageId);
+  const automationCtx = useCallback(
+    (me) => ({
+      chatTemplates,
+      emailTemplates,
+      organizerTemplates,
+      proposalTemplates,
+      invoiceTemplates,
+      folderTemplates,
+      taskTemplates,
+      statuses: clientFacingJobs,
+      tagById,
+      me: me || "Harbor",
+    }),
+    [
+      chatTemplates,
+      emailTemplates,
+      organizerTemplates,
+      proposalTemplates,
+      invoiceTemplates,
+      folderTemplates,
+      taskTemplates,
+      clientFacingJobs,
+      tagById,
+    ],
+  );
+  const stageOf = useCallback(
+    (pipelineId, stageId) =>
+      pipelines
+        .find((p) => p.id === pipelineId)
+        ?.stages.find((s) => s.id === stageId),
+    [pipelines],
+  );
   /** Write the accounts that automations changed. */
   const commitAccounts = (changed) => {
     if (changed.size)
@@ -698,19 +714,11 @@ export function DataProvider({ children }) {
       return { jobs: made, results };
     },
     [
+      automationCtx,
+      stageOf,
       accounts,
-      pipelines,
-      chatTemplates,
-      emailTemplates,
-      organizerTemplates,
-      proposalTemplates,
-      invoiceTemplates,
-      folderTemplates,
-      taskTemplates,
-      clientFacingJobs,
-      tagById,
     ],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   /** Update a job (no automations). Returns the id. */
   const saveJob = useCallback((job) => {
@@ -760,20 +768,12 @@ export function DataProvider({ children }) {
       return results;
     },
     [
+      automationCtx,
+      stageOf,
       jobs,
       accounts,
-      pipelines,
-      chatTemplates,
-      emailTemplates,
-      organizerTemplates,
-      proposalTemplates,
-      invoiceTemplates,
-      folderTemplates,
-      taskTemplates,
-      clientFacingJobs,
-      tagById,
     ],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+  );
 
   const deleteJobs = useCallback(
     (ids) => setJobs((list) => list.filter((j) => !ids.includes(j.id))),
@@ -1046,14 +1046,17 @@ export function DataProvider({ children }) {
   /** The next free invoice number across all accounts, e.g. "INV-1029". */
   const nextInvoiceNumber = useMemo(() => nextNumberOf(invoices), [invoices]);
   /** Change the invoices of the given accounts: fn(list, account) → new list. */
-  const updateAccountInvoices = (accountIds, fn) =>
-    setAccounts((list) =>
-      list.map((a, i) =>
-        accountIds.includes(a.id)
-          ? { ...a, invoices: fn(invoicesOf(a, invoiceTemplates, i), a) }
-          : a,
+  const updateAccountInvoices = useCallback(
+    (accountIds, fn) =>
+      setAccounts((list) =>
+        list.map((a, i) =>
+          accountIds.includes(a.id)
+            ? { ...a, invoices: fn(invoicesOf(a, invoiceTemplates, i), a) }
+            : a,
+        ),
       ),
-    );
+    [invoiceTemplates],
+  );
 
   /**
    * Create (no id) or update (with id) an invoice. Shortcodes in the description are filled for the account,
@@ -1091,8 +1094,8 @@ export function DataProvider({ children }) {
       );
       return rec;
     },
-    [accounts, invoices, nextInvoiceNumber, invoiceTemplates],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+    [accounts, invoices, nextInvoiceNumber, updateAccountInvoices],
+  );
   /** Create an invoice (send: true sends it). Returns the new invoice. */
   const createInvoice = useCallback(
     (form, { send } = {}) => saveInvoice({ ...form, id: undefined }, { send }),
@@ -1109,8 +1112,8 @@ export function DataProvider({ children }) {
         (list) => list.filter((x) => !ids.has(x.id)),
       );
     },
-    [invoiceTemplates],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+    [updateAccountInvoices],
+  );
   /** Set the status of invoices: 'draft' | 'sent' | 'paid'. */
   const setInvoiceStatus = useCallback(
     (items, status) => {
@@ -1132,8 +1135,8 @@ export function DataProvider({ children }) {
           ),
       );
     },
-    [invoiceTemplates],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+    [updateAccountInvoices],
+  );
   /** Print an invoice (opens the browser's print dialog). */
   const printInvoice = useCallback(
     (inv) =>
@@ -1180,14 +1183,17 @@ export function DataProvider({ children }) {
     [accounts, taskTemplates, jobs, pipelines],
   );
   /** Change the tasks of the given accounts: fn(list, account) → new list. */
-  const updateAccountTasks = (accountIds, fn) =>
-    setAccounts((list) =>
-      list.map((a) =>
-        accountIds.includes(a.id)
-          ? { ...a, tasks: fn(tasksOf(a, taskTemplates), a) }
-          : a,
+  const updateAccountTasks = useCallback(
+    (accountIds, fn) =>
+      setAccounts((list) =>
+        list.map((a) =>
+          accountIds.includes(a.id)
+            ? { ...a, tasks: fn(tasksOf(a, taskTemplates), a) }
+            : a,
+        ),
       ),
-    );
+    [taskTemplates],
+  );
 
   /**
    * Create (no id) or update (with id) a task. Shortcodes in the name / description are filled for the account,
@@ -1231,8 +1237,8 @@ export function DataProvider({ children }) {
       );
       return rec;
     },
-    [accounts, tasks, taskTemplates],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+    [accounts, tasks, updateAccountTasks],
+  );
   /** Create a task. Returns the new task. */
   const createTask = useCallback(
     (form) => saveTask({ ...form, id: undefined }),
@@ -1248,8 +1254,8 @@ export function DataProvider({ children }) {
         list.filter((t) => !ids.has(t.id)),
       );
     },
-    [taskTemplates],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+    [updateAccountTasks],
+  );
   /** Set the status of tasks (one or many), e.g. "Completed" or "No status" (reopen). */
   const setTaskStatus = useCallback(
     (items, status) => {
@@ -1270,8 +1276,8 @@ export function DataProvider({ children }) {
         ),
       );
     },
-    [taskTemplates],
-  ); // eslint-disable-line react-hooks/exhaustive-deps
+    [updateAccountTasks],
+  );
   /* ---------- Team communication (Communication menu): channels + direct messages ---------- */
   // `me` is the signed-in person's name (from AuthContext), passed in by the page.
   const [teamChats, setTeamChats] = useState(seedTeamChats);
