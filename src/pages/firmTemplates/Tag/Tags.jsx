@@ -163,6 +163,18 @@ export default function Tags() {
         </>}
         footer={filtered.length > 0 && <Pagination {...paging} label="tags" />}
       >
+        <BulkBar
+        count={selection.count}
+        total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((t) => t.value), true)}
+        onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <BarSelect label="Set color" value="" onChange={recolor} options={TAG_PALETTE.map((p) => ({ value: p.hex, label: p.name }))} />
+          <button type="button" className={barButton} onClick={() => exportRows(selectedTags, 'tags-selected.csv')}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirm(selectedTags)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
         <Table className="min-w-[760px]">
           <TableHeader>
             <TableRow>
@@ -233,18 +245,7 @@ export default function Tags() {
         </Table>
       </DataCard>
 
-      <BulkBar
-        count={selection.count}
-        total={filtered.length}
-        onSelectAll={() => selection.setMany(filtered.map((t) => t.value), true)}
-        onClear={selection.clear}
-        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-        actions={<>
-          <BarSelect label="Set color" value="" onChange={recolor} options={TAG_PALETTE.map((p) => ({ value: p.hex, label: p.name }))} />
-          <button type="button" className={barButton} onClick={() => exportRows(selectedTags, 'tags-selected.csv')}><Download aria-hidden="true" />Export</button>
-          <button type="button" className={barDanger} onClick={() => setConfirm(selectedTags)}><Trash2 aria-hidden="true" />Delete</button>
-        </>}
-      />
+      
 
       {drawer && (
         <TagDrawer

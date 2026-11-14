@@ -16,7 +16,7 @@ import {
   DropdownMenuRadioItem, DropdownMenuSeparator, DropdownMenuShortcut, DropdownMenuSub, DropdownMenuSubContent,
   DropdownMenuSubTrigger, DropdownMenuTrigger,
 } from './ui/dropdown-menu';
-
+import { useData } from '../context/DataContext';   // from src/components/ → '../context/…'
 /** Kept for older imports: tooltip shown only when `enabled`. */
 export function RailTooltip({ label, enabled = true, children }) {
   return <SimpleTooltip label={label} side="right" enabled={enabled}><span className="block">{children}</span></SimpleTooltip>;
@@ -189,7 +189,9 @@ export default function Sidebar({
 }) {
   const { pathname } = useLocation();
   const [open, setOpen] = useState({});
-
+  const data = useData();
+  /** Live badge from DataContext (badgeFrom), else the item's own badge. 0 → no badge. */
+  const badgeOf = (item) => (item.badgeFrom ? data?.[item.badgeFrom] : item.badge) || null;
   // Open the group that contains the current page whenever the URL changes.
   useEffect(() => {
     const current = menu.find((m) => m.submenu.length && groupActive(pathname, m));
@@ -232,16 +234,34 @@ export default function Sidebar({
               }
               const active = groupActive(pathname, item);
               return (
-                <SimpleTooltip key={item.id} label={item.label} side="right" enabled={collapsed}>
-                  <NavLink to={item.path} onClick={onNavigate} aria-current={active ? 'page' : undefined} className={itemCls(active, collapsed)}>
-                    <Icon aria-hidden="true" className={cn(active && 'text-primary')} />
-                    {collapsed ? <span className="sr-only">{item.label}</span> : <span className="flex-1 truncate">{item.label}</span>}
-                    {item.badge && !collapsed && (
-                      <span className="ml-auto rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold tabular-nums text-primary">{item.badge}</span>
-                    )}
-                    {item.badge && collapsed && <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-primary" aria-hidden="true" />}
-                  </NavLink>
-                </SimpleTooltip>
+                // <SimpleTooltip key={item.id} label={item.label} side="right" enabled={collapsed}>
+                //   <NavLink to={item.path} onClick={onNavigate} aria-current={active ? 'page' : undefined} className={itemCls(active, collapsed)}>
+                //     <Icon aria-hidden="true" className={cn(active && 'text-primary')} />
+                //     {collapsed ? <span className="sr-only">{item.label}</span> : <span className="flex-1 truncate">{item.label}</span>}
+                //     {item.badge && !collapsed && (
+                //       <span className="ml-auto rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold tabular-nums text-primary">{item.badge}</span>
+                //     )}
+                //     {item.badge && collapsed && <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-primary" aria-hidden="true" />}
+                //   </NavLink>
+                // </SimpleTooltip>
+                <SimpleTooltip key={item.id} label={badgeOf(item) ? `${item.label} · ${badgeOf(item)} new` : item.label} side="right" enabled={collapsed}>
+  <NavLink to={item.path} onClick={onNavigate} aria-current={active ? 'page' : undefined} className={itemCls(active, collapsed)}>
+    <Icon aria-hidden="true" className={cn(active && 'text-primary')} />
+    {collapsed ? <span className="sr-only">{item.label}</span> : <span className="flex-1 truncate">{item.label}</span>}
+    {badgeOf(item) && !collapsed && (
+      <span className="ml-auto rounded-md bg-primary/10 px-1.5 text-[11px] font-semibold tabular-nums text-primary">
+        {badgeOf(item) > 99 ? '99+' : badgeOf(item)}
+        <span className="sr-only"> new</span>
+      </span>
+    )}
+    {badgeOf(item) && collapsed && (
+      <>
+        <span className="absolute right-1.5 top-1.5 size-1.5 rounded-full bg-primary" aria-hidden="true" />
+        <span className="sr-only">{badgeOf(item)} new</span>
+      </>
+    )}
+  </NavLink>
+</SimpleTooltip>
               );
             })}
           </div>

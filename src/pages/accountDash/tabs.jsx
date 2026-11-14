@@ -792,7 +792,7 @@ export function AccountDocuments() {
               {folderTemplates.map((t) => <SelectItem key={t.id} value={t.id}>{t.templatename}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Button variant="outline" size="sm" disabled={!pick} onClick={apply}>Apply</Button>
+          <Button variant="default" size="sm" disabled={!pick} onClick={apply}>Apply</Button>
           {note && <span role="status" className="inline-flex items-center gap-1.5 text-sm font-medium text-success-700"><CheckCircle2 className="size-4" aria-hidden="true" />{note}</span>}
         </div>
       </header>
@@ -898,7 +898,7 @@ export function AccountCommunication() {
   const { setAccounts } = useData();
   const { user } = useAuth() || {};
   const [drawer, setDrawer] = useState(false);
-  const [note, setNote] = useState('');
+  // const [note, setNote] = useState('');
   const chats = account.chats ?? demoChats(account);
   const me = user?.name || 'You';
 
@@ -907,14 +907,14 @@ export function AccountCommunication() {
   const createChats = (accountIds, form) => {
     setAccounts((list) => list.map((a) => (accountIds.includes(a.id) ? { ...a, chats: [chatFromForm(form, a, me), ...(a.chats ?? demoChats(a))] } : a)));
     setDrawer(false);
-    setNote(accountIds.length > 1 ? `Created ${accountIds.length} chats` : 'Chat created');
-    setTimeout(() => setNote(''), 2400);
+    // setNote(accountIds.length > 1 ? `Created ${accountIds.length} chats` : 'Chat created');
+    // setTimeout(() => setNote(''), 2400);
   };
   return (
     <>
       <ChatsView chats={chats} onChange={saveChats} onNew={() => setDrawer(true)} me={me} clientName={contactName(primaryContact(account)) || account.name} />
       {drawer && <NewChatDrawer defaultAccountIds={[account.id]} onClose={() => setDrawer(false)} onCreate={createChats} />}
-      <ToastBridge message={note} />
+      {/* <ToastBridge message={note} /> */}
     </>
   );
 }

@@ -10,7 +10,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { useData } from '../../../context/DataContext';
-import { SENDERS } from '../../../data/emailtemplates';
+// import { SENDERS } from '../../../data/emailtemplates';
 import { contactShortcuts } from '../../../data/shortcodes';
 import { emptyChatTemplate } from '../../../data/chatTemplates';
 import { ToastBridge } from '../../../components/ui/sonner';
@@ -55,6 +55,8 @@ export default function ChatTemplateForm() {
 }
 
 function FormPage({ editingId }) {
+  const { teamOptions = [] } = useData();
+const SENDERS = teamOptions.map((m) => ({ value: m.value, label: m.label }));   
   const navigate = useNavigate();
   const { chatTemplates = [], saveChatTemplate, deleteChatTemplates, chatTemplateNameTaken } = useData();
   const existing = editingId ? chatTemplates.find((t) => String(t.id) === String(editingId)) : null;

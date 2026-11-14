@@ -15,13 +15,13 @@ import { SimpleTooltip } from '../../../components/ui/tooltip';
 import { EmptyState } from '../../../components/page';
 import { cn } from 'lib/utils';
 import { useData } from '../../../context/DataContext';
-import { TEAM_MEMBERS } from '../../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../../data/sampleData';
 import { JOB_CARD_FIELDS, SORT_JOBS_BY, emptyPipeline, newStage } from '../../../data/pipelinesdata';
 import { templateOptionsFrom } from '../../../data/statusOptions';
 import { ToastBridge } from '../../../components/ui/sonner';
 
 const LIST_PATH = '/firmtemp/pipelines';
-const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
+// const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
 const clone = (o) => JSON.parse(JSON.stringify(o));
 const NONE = '__none__';
 
@@ -70,6 +70,8 @@ export default function PipelineForm() {
 }
 
 function FormPage({ editingId }) {
+   const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+ const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
   const navigate = useNavigate();
   const uid = useId();
   const { pipelines = [], savePipeline, deletePipelines, pipelineNameTaken, jobTemplates = [] } = useData();

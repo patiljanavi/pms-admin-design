@@ -10,9 +10,11 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { useData } from '../../../context/DataContext';
-import {
-  ALLOWED_EXTENSIONS, EMAIL_MODES, MAX_FILE_SIZE, SENDERS, emptyEmailTemplate, formatSize, shortcutsForMode,
-} from '../../../data/emailtemplates';
+// import {
+//   ALLOWED_EXTENSIONS, EMAIL_MODES, MAX_FILE_SIZE, SENDERS, emptyEmailTemplate, formatSize, shortcutsForMode,
+// } from '../../../data/emailtemplates';
+import { ALLOWED_EXTENSIONS, EMAIL_MODES, MAX_FILE_SIZE, emptyEmailTemplate, formatSize, shortcutsForMode,
+ } from '../../../data/emailtemplates';
 import { ToastBridge } from '../../../components/ui/sonner';
 import {
   EditorActionBar, EditorHeader, EditorNotFound, ErrorSummary, Field, FormSection, fmtDate, invalidProps,
@@ -35,6 +37,8 @@ export default function EmailTemplateForm() {
 }
 
 function FormPage({ editingId }) {
+    const { teamOptions = [] } = useData();
+  const SENDERS = teamOptions.map((m) => ({ value: m.value, label: m.label }));
   const navigate = useNavigate();
   const { emailTemplates = [], saveEmailTemplate, deleteEmailTemplates } = useData();
   const existing = editingId ? emailTemplates.find((t) => t.id === editingId) : null;

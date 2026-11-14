@@ -80,23 +80,78 @@ export const barDanger = 'inline-flex h-8 items-center gap-1.5 whitespace-nowrap
  * Floating action bar that appears while rows are selected (Linear / Attio style).
  * Left: count, "Select all N", clear. Middle: filters. Right: bulk actions.
  */
+// export function BulkBar({ count, total, onSelectAll, onClear, filters, actions }) {
+//   if (!count) return null;
+//   return (
+//     <div className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-4">
+//       <div role="region" aria-label="Selected rows"
+//         className="pointer-events-auto flex max-w-full animate-in fade-in-0 slide-in-from-bottom-4 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-popover py-2 pl-3 pr-2 text-popover-foreground shadow-pop duration-200">
+//         <div className="flex items-center gap-2">
+//           <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-primary px-1.5 text-xs font-semibold tabular-nums text-primary-foreground">{count}</span>
+//           <span className="text-sm font-medium">selected</span>
+//           {onSelectAll && count < total && (
+//             <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={onSelectAll}>Select all {total}</button>
+//           )}
+//         </div>
+//         {filters && <div className="flex items-center gap-3 border-l pl-3">{filters}</div>}
+//         {actions && <div className="flex flex-wrap items-center gap-1.5 border-l pl-3">{actions}</div>}
+//         <button type="button" onClick={onClear} aria-label="Clear selection"
+//           className={cn('ml-1 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground')}>
+//           <X className="size-4" />
+//         </button>
+//       </div>
+//     </div>
+//   );
+// }
+
 export function BulkBar({ count, total, onSelectAll, onClear, filters, actions }) {
   if (!count) return null;
+
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-5 z-40 flex justify-center px-4">
-      <div role="region" aria-label="Selected rows"
-        className="pointer-events-auto flex max-w-full animate-in fade-in-0 slide-in-from-bottom-4 flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-popover py-2 pl-3 pr-2 text-popover-foreground shadow-pop duration-200">
+    <div className="mb-3 w-full animate-in fade-in-0 slide-in-from-top-2 duration-200">
+      <div
+        role="region"
+        aria-label="Selected rows"
+        className="flex w-full flex-wrap items-center gap-x-3 gap-y-2 rounded-xl border bg-popover px-3 py-2 text-popover-foreground shadow-sm"
+      >
         <div className="flex items-center gap-2">
-          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-primary px-1.5 text-xs font-semibold tabular-nums text-primary-foreground">{count}</span>
+          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-md bg-primary px-1.5 text-xs font-semibold tabular-nums text-primary-foreground">
+            {count}
+          </span>
+
           <span className="text-sm font-medium">selected</span>
+
           {onSelectAll && count < total && (
-            <button type="button" className="text-sm font-medium text-primary hover:underline" onClick={onSelectAll}>Select all {total}</button>
+            <button
+              type="button"
+              className="text-sm font-medium text-primary hover:underline"
+              onClick={onSelectAll}
+            >
+              Select all {total}
+            </button>
           )}
         </div>
-        {filters && <div className="flex items-center gap-3 border-l pl-3">{filters}</div>}
-        {actions && <div className="flex flex-wrap items-center gap-1.5 border-l pl-3">{actions}</div>}
-        <button type="button" onClick={onClear} aria-label="Clear selection"
-          className={cn('ml-1 inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground')}>
+
+        {filters && (
+          <div className="flex items-center gap-3 border-l pl-3">
+            {filters}
+          </div>
+        )}
+
+        {actions && (
+          <div className="flex flex-wrap items-center gap-1.5 border-l pl-3">
+            {actions}
+          </div>
+        )}
+
+        <button
+          type="button"
+          onClick={onClear}
+          aria-label="Clear selection"
+          className={cn(
+            'ml-auto inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground'
+          )}
+        >
           <X className="size-4" />
         </button>
       </div>

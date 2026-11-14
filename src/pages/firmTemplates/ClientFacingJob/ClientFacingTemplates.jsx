@@ -228,6 +228,62 @@ export default function ClientFacingTemplates() {
         }
         footer={filtered.length > 0 && <Pagination {...paging} label="client-facing jobs" />}
       >
+         {/* Bulk actions */}
+      <BulkBar
+        count={selection.count}
+        total={filtered.length}
+        onSelectAll={() =>
+          selection.setMany(
+            filtered.map((job) => job.value),
+            true
+          )
+        }
+        onClear={selection.clear}
+        filters={
+          <SelectedOnlyFilter
+            checked={selectedOnly}
+            onChange={(value) => {
+              setSelectedOnly(value);
+              setPage(1);
+            }}
+          />
+        }
+        actions={
+          <>
+            <button
+              type="button"
+              className={barButton}
+              disabled={selectedJobs.length === 0}
+              onClick={() => {
+                downloadCsv('client-facing-jobs-selected.csv', [
+                  ['Name', 'Color', 'Created', 'Description'],
+                  ...selectedJobs.map((job) => [
+                    job.label,
+                    job.color || '',
+                    job.createdAt || '',
+                    job.description || '',
+                  ]),
+                ]);
+
+                notify(`Exported ${selectedJobs.length} jobs`);
+              }}
+            >
+              <Download aria-hidden="true" />
+              Export
+            </button>
+
+            <button
+              type="button"
+              className={barDanger}
+              disabled={selectedJobs.length === 0}
+              onClick={() => setConfirm(selectedJobs)}
+            >
+              <Trash2 aria-hidden="true" />
+              Delete
+            </button>
+          </>
+        }
+      />
         <Table className="min-w-[720px]">
           <TableHeader>
             <TableRow>
@@ -324,62 +380,7 @@ export default function ClientFacingTemplates() {
         </Table>
       </DataCard>
 
-      {/* Bulk actions */}
-      <BulkBar
-        count={selection.count}
-        total={filtered.length}
-        onSelectAll={() =>
-          selection.setMany(
-            filtered.map((job) => job.value),
-            true
-          )
-        }
-        onClear={selection.clear}
-        filters={
-          <SelectedOnlyFilter
-            checked={selectedOnly}
-            onChange={(value) => {
-              setSelectedOnly(value);
-              setPage(1);
-            }}
-          />
-        }
-        actions={
-          <>
-            <button
-              type="button"
-              className={barButton}
-              disabled={selectedJobs.length === 0}
-              onClick={() => {
-                downloadCsv('client-facing-jobs-selected.csv', [
-                  ['Name', 'Color', 'Created', 'Description'],
-                  ...selectedJobs.map((job) => [
-                    job.label,
-                    job.color || '',
-                    job.createdAt || '',
-                    job.description || '',
-                  ]),
-                ]);
-
-                notify(`Exported ${selectedJobs.length} jobs`);
-              }}
-            >
-              <Download aria-hidden="true" />
-              Export
-            </button>
-
-            <button
-              type="button"
-              className={barDanger}
-              disabled={selectedJobs.length === 0}
-              onClick={() => setConfirm(selectedJobs)}
-            >
-              <Trash2 aria-hidden="true" />
-              Delete
-            </button>
-          </>
-        }
-      />
+     
 
       {/* Create/Edit drawer */}
       {drawer && (

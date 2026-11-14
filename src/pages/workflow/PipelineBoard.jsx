@@ -17,13 +17,15 @@ import { useAuth } from '../../context/AuthContext';
 import { WORKFLOW_PIPELINES_PATH, accountTabPath } from '../../config';
 import { SORT_JOBS_BY } from '../../data/pipelinesdata';
 import { isOverdue } from '../../data/jobs';
-import { TEAM_MEMBERS } from '../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../data/sampleData';
 
 /** Deletions get a neutral toast, everything else a success toast. */
 const notify = (m) => (/delet|remov/i.test(m) ? toast(m) : toast.success(m));
 
 /** Kanban board of one pipeline: a column per stage; drag jobs between stages. /pipelines/:pipelineId */
 export default function PipelineBoard() {
+  const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+// +  const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
   const { pipelineId } = useParams();
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();

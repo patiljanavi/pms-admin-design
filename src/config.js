@@ -25,6 +25,8 @@ export const BILLING_PROPOSALS_PATH = '/billing/proposalsandels';
 /** Account dashboard (opened from an account's name): /clients/accounts/accountsdash/<tab>/<accountId> */
 export const ACCOUNT_DASH_PATH = '/clients/accounts/accountsdash';
 export const TEAMS_COMMUNICATION_PATH = '/internal-communication';
+export const TEAM_MEMBERS_PATH = '/firmtemp/teammember';
+export const INBOX_NOTIFICATIONS_PATH = '/Inbox+'
 export const ACCOUNT_TABS = [
   { key: 'overview', label: 'Overview' },
   { key: 'info', label: 'Info' },
@@ -53,7 +55,8 @@ export const MENU_GROUPS = [
 
 export const MENU = [
   { id: 'insights', label: 'Insights', path: '/insights', icon: LayoutDashboard, group: 'workspace', submenu: [] },
-  { id: 'inbox', label: 'Inbox', path: '/Inbox+', icon: Inbox, group: 'workspace', badge: 12, submenu: [] },
+  // { id: 'inbox', label: 'Inbox', path: '/Inbox+', icon: Inbox, group: 'workspace', badge: 12, submenu: [] },
+  { id: 'inbox', label: 'Inbox', path: '/Inbox+', icon: Inbox, group: 'workspace', badgeFrom: 'unreadNotifications', submenu: [] },
   {
     id: 'clients', label: 'Clients', path: '/clients/accounts/activeaccounts', icon: Users, group: 'workspace',
     submenu: [

@@ -4,10 +4,10 @@ import ShortcodeTextField from '../ShortcodeTextField';
 import { Avatar, Toggle, cx, initials } from '../ui';
 import { Checkbox } from '../ui/checkbox';
 import { cn } from 'lib/utils';
-import { TEAM_MEMBERS } from '../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../data/sampleData';
 import { accountShortcuts } from '../../data/shortcodes';
-
-const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
+import { useData } from '../../context/DataContext';
+// const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
 
 function StepCard({ title, description, checked, onChange, note }) {
   return (
@@ -25,6 +25,8 @@ function StepCard({ title, description, checked, onChange, note }) {
 
 /** Step 1 — General: names, team members and which steps the proposal has. */
 export default function GeneralStep({ formData, updateFormData, stepErrors = {} }) {
+  const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+ const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
   const g = formData.general;
   const set = (field, value) => updateFormData('general', { [field]: value });
 

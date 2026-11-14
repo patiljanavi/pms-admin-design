@@ -18,7 +18,7 @@ import { BarSelect, BulkBar, HeaderCheckbox, SelectCheckbox, SelectedOnlyFilter,
 import { DataCard, EmptyState, PageHeader, SearchInput, StatCard } from '../../components/page';
 import FacetFilter from '../../components/FacetFilter';
 import RowActionsMenu from '../../components/RowActionsMenu';
-import { TEAM_MEMBERS } from '../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../data/sampleData';
 import TagChip from '../../components/TagChip';
 import { useData } from '../../context/DataContext';
 import { cn } from 'lib/utils';
@@ -79,6 +79,8 @@ function SortHead({ label, col, sort, setSort, className }) {
 }
 
 export default function Accounts() {
+   const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+// const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
   const navigate = useNavigate();
   const { accounts, setAccounts, tags: tagOptions, tagById, createTag, addAccount: addNewAccount } = useData();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -129,9 +131,23 @@ export default function Accounts() {
   const filtersOn = !!(q || tagFilter.length || teamFilter.length || unassignedOnly);
 
   const tagFacets = useMemo(() => tagOptions.map((t) => ({ ...t, count: accounts.filter((a) => (a.tags || []).includes(t.value)).length, render: () => <TagChip tag={t} size="xs" /> })), [tagOptions, accounts]);
-  const teamFacets = useMemo(() => TEAM_MEMBERS.map((m) => ({ value: m.label, label: m.label, count: accounts.filter((a) => (a.team || []).includes(m.label)).length,
-    render: () => <span className="flex items-center gap-2"><Avatar text={initials(m.label)} size="xs" />{m.label}</span> })), [accounts]);
-
+  // const teamFacets = useMemo(() => TEAM_MEMBERS.map((m) => ({ value: m.label, label: m.label, count: accounts.filter((a) => (a.team || []).includes(m.label)).length,
+  //   render: () => <span className="flex items-center gap-2"><Avatar text={initials(m.label)} size="xs" />{m.label}</span> })), [accounts]);
+const teamFacets = useMemo(
+  () =>
+    TEAM_MEMBERS.map((m) => ({
+      value: m.label,
+      label: m.label,
+      count: accounts.filter((a) => (a.team || []).includes(m.label)).length,
+      render: () => (
+        <span className="flex items-center gap-2">
+          <Avatar text={initials(m.label)} size="xs" />
+          {m.label}
+        </span>
+      ),
+    })),
+  [accounts, TEAM_MEMBERS]
+);
   const unassigned = accounts.filter((a) => !a.team?.length).length;
   const contactsCount = accounts.reduce((n, a) => n + (a.contacts?.length || 1), 0);
 
@@ -173,7 +189,35 @@ export default function Accounts() {
     setAccounts((list) => list.filter((x) => x.id !== a.id));
     toast(`Deleted ${a.name}`, { action: { label: 'Undo', onClick: () => setAccounts((list) => [a, ...list]) } });
   };
+// const [modal, setModal] = useState(null);
+const [deleteTarget, setDeleteTarget] = useState(null);
+const [deleteText, setDeleteText] = useState('');
+const openDeleteModal = (account = null) => {
+  setDeleteTarget(account);
+  setDeleteText('');
+  setModal('delete');
+};
 
+const closeDeleteModal = () => {
+  setModal(null);
+  setDeleteTarget(null);
+  setDeleteText('');
+};
+
+const confirmDelete = () => {
+  if (deleteText !== 'DELETE') return;
+
+  if (deleteTarget) {
+    // Delete one account
+    deleteOne(deleteTarget);
+    closeDeleteModal();
+  } else {
+    // Delete selected accounts
+    deleteSelected();
+    setDeleteTarget(null);
+    setDeleteText('');
+  }
+};
   const visibleCount = 2 + COLUMNS.filter((c) => cols[c.id]).length + 1;
 
   return (
@@ -217,10 +261,75 @@ export default function Accounts() {
                 ))}
               </DropdownMenuContent>
             </DropdownMenu>
+            
           </div>
+          
         </>}
         footer={filtered.length > 0 && <Pagination {...paging} label="accounts" />}
       >
+             {selection.count > 0 && (
+  <BulkBar
+    count={selection.count}
+    total={filtered.length}
+    onSelectAll={() => selection.setMany(filtered.map((a) => a.id), true)}
+    onClear={selection.clear}
+    filters={
+      <SelectedOnlyFilter
+        checked={selectedOnly}
+        onChange={(v) => {
+          setSelectedOnly(v);
+          setPage(1);
+        }}
+      />
+    }
+    actions={
+      <>
+        <BarSelect
+          label="Add tag"
+          value=""
+          onChange={addTag}
+          options={tagOptions.map((t) => ({
+            value: t.value,
+            label: t.label,
+          }))}
+        />
+
+        <BarSelect
+          label="Assign"
+          value=""
+          onChange={assign}
+          options={TEAM_MEMBERS.map((m) => m.label)}
+        />
+
+        <button
+          type="button"
+          className={barButton}
+          onClick={() => exportRows(selectedRows, 'accounts-selected.csv')}
+        >
+          <Download aria-hidden="true" />
+          Export
+        </button>
+
+        {/* <button
+          type="button"
+          className={barDanger}
+          onClick={() => setModal('delete')}
+        >
+          <Trash2 aria-hidden="true" />
+          Delete
+        </button> */}
+        <button
+  type="button"
+  className={barDanger}
+  onClick={() => openDeleteModal()}
+>
+  <Trash2 aria-hidden="true" />
+  Delete
+</button>
+      </>
+    }
+  />
+)}
         <Table className="min-w-[860px]">
           <TableHeader>
             <TableRow>
@@ -268,7 +377,9 @@ export default function Accounts() {
                         { label: 'Open dashboard', icon: LayoutDashboard, onClick: () => navigate(accountTabPath('overview', a.id)) },
                         { label: 'Quick view', icon: Eye, onClick: () => navigate(`${ACCOUNTS_PATH}/${a.id}`) },
                       ]}
-                      onDelete={() => deleteOne(a)} />
+                      // onDelete={() => deleteOne(a)} 
+                      onDelete={() => openDeleteModal(a)}
+                      />
                   </TableCell>
                 </TableRow>
               );
@@ -288,25 +399,14 @@ export default function Accounts() {
             )}
           </TableBody>
         </Table>
+   
       </DataCard>
 
-      <BulkBar
-        count={selection.count}
-        total={filtered.length}
-        onSelectAll={() => selection.setMany(filtered.map((a) => a.id), true)}
-        onClear={selection.clear}
-        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-        actions={<>
-          <BarSelect label="Add tag" value="" onChange={addTag} options={tagOptions.map((t) => ({ value: t.value, label: t.label }))} />
-          <BarSelect label="Assign" value="" onChange={assign} options={TEAM_MEMBERS.map((m) => m.label)} />
-          <button type="button" className={barButton} onClick={() => exportRows(selectedRows, 'accounts-selected.csv')}><Download aria-hidden="true" />Export</button>
-          <button type="button" className={barDanger} onClick={() => setModal('delete')}><Trash2 aria-hidden="true" />Delete</button>
-        </>}
-      />
+     
 
       {modal === 'add' && <AddAccountDrawer onClose={() => setModal(null)} onSave={addAccount} tags={tagOptions} onCreateTag={createTag} />}
       {modal === 'wizard' && <SetupWizard onClose={() => setModal(null)} onFinish={addAccount} />}
-      {modal === 'delete' && (
+      {/* {modal === 'delete' && (
         <Modal title={`Delete ${plural(selection.count, 'account')}?`} description="These accounts and their contacts will be removed." onClose={() => setModal(null)}
           footer={<><Button variant="outline" onClick={() => setModal(null)}>Cancel</Button>
             <Button variant="destructive" onClick={deleteSelected}><Trash2 />Delete {plural(selection.count, 'account')}</Button></>}>
@@ -318,7 +418,87 @@ export default function Accounts() {
             ))}
           </ul>
         </Modal>
-      )}
+      )} */}
+
+{modal === 'delete' && (() => {
+  const accountsToDelete = deleteTarget
+    ? [deleteTarget]
+    : selectedRows;
+
+  const deleteCount = accountsToDelete.length;
+
+  return (
+    <Modal
+      title={`Delete ${plural(deleteCount, 'account')}?`}
+      description="This action will remove the selected accounts and their contacts. This action can be undone using the Undo notification."
+      onClose={closeDeleteModal}
+      footer={
+        <>
+          <Button variant="outline" onClick={closeDeleteModal}>
+            Cancel
+          </Button>
+
+          <Button
+            variant="destructive"
+            disabled={deleteText !== 'DELETE' || deleteCount === 0}
+            onClick={confirmDelete}
+          >
+            <Trash2 />
+            Delete {plural(deleteCount, 'account')}
+          </Button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+          <p className="text-sm font-medium text-destructive">
+            Warning: This action will delete {deleteCount} account
+            {deleteCount !== 1 ? 's' : ''}.
+          </p>
+        </div>
+
+        <ul className="max-h-40 divide-y overflow-y-auto rounded-lg border">
+          {accountsToDelete.map((a) => (
+            <li
+              key={a.id}
+              className="flex items-center gap-3 px-3 py-2 text-sm"
+            >
+              <Avatar text={initials(a.name)} size="xs" />
+
+              <span className="font-medium">{a.name}</span>
+
+              <span className="truncate text-muted-foreground">
+                {a.company}
+              </span>
+            </li>
+          ))}
+        </ul>
+
+        <div className="space-y-2">
+          <label className="text-sm font-medium">
+            Type <span className="font-bold text-destructive">DELETE</span> to
+            confirm
+          </label>
+
+          <input
+            type="text"
+            value={deleteText}
+            onChange={(e) => setDeleteText(e.target.value)}
+            placeholder="Type DELETE here"
+            autoComplete="off"
+            className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring"
+          />
+
+          {deleteText.length > 0 && deleteText !== 'DELETE' && (
+            <p className="text-xs text-destructive">
+              Please type DELETE exactly to continue.
+            </p>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+})()}
 
       {/* Drawer route renders here: /clients/accounts/activeaccounts/:accountId */}
       <Outlet context={{ accounts }} />

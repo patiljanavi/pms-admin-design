@@ -1546,13 +1546,12 @@
 
 // export const useData = () => useContext(DataContext);
 
-
 import {
   createContext,
   useCallback,
   useContext,
   useMemo,
-  useState,
+  useState,useRef,
 } from "react";
 import { DEFAULT_TAGS, seedAccounts, seedContacts } from "../data/sampleData";
 import { seedTaskTemplates } from "../data/taskTemplates";
@@ -1579,8 +1578,24 @@ import { seedOrganizerTemplates } from "../data/organizerTemplates";
 import { seedFolderTemplates } from "../data/folderTemplates";
 import { seedJobs } from "../data/jobs";
 import { runAutomations } from "../data/automations";
-import { fillShortcodes } from "../data/accountChats";
+import {
+  demoPayments,
+  isSettleable,
+  nextPaymentNumber,
+  paymentId,
+  round2,
+} from "../data/payments";
+import { useAuth } from "./AuthContext";
+import { accountTabPath } from "../config";
+import { makeNotification, seedNotifications } from "../data/notifications";
+import { emptyPermissions, fullName, seedGroups, seedTeam, teamId } from "../data/team";
+import { chatFromForm, demoChats, fillShortcodes } from "../data/accountChats";
 import { channelSlug, chatId, isMe, seedTeamChats } from "../data/teamChats";
+import {
+  creditBalance,
+  normalizePayment,
+  withPayments,
+} from "../data/payments";
 /**
  * Shared app data: accounts, contacts, tags, task / email / job templates, client-facing jobs (statuses),
  * pipelines + jobs (with stage automations), services and service categories,
@@ -1612,6 +1627,42 @@ const copyName = (base, isTaken) => {
 };
 
 export function DataProvider({ children }) {
+      const auth = useAuth() || {};
+  const signedIn = auth.user || null; // the admin who is logged in
+
+  /* ---------- Notifications (Inbox+) ---------- */
+  const [notifications, setNotifications] = useState(() =>
+    seedNotifications(seedAccounts, accountTabPath),
+  );
+  const actorRef = useRef("");
+  actorRef.current = signedIn?.name || ""; // who did it
+  const pushNotification = useCallback(
+    (type, data = {}) =>
+      setNotifications((list) => [
+        makeNotification(type, { ...data, actor: data.actor ?? actorRef.current }),
+        ...list,
+      ]),
+    [],
+  );
+  const unreadNotifications = useMemo(
+    () => notifications.filter((n) => !n.read).length,
+    [notifications],
+  );
+  const markNotificationsRead = useCallback(
+    (ids, read = true) =>
+      setNotifications((list) =>
+        list.map((n) => (ids.includes(n.id) ? { ...n, read } : n)),
+      ),
+    [],
+  );
+  const markAllNotificationsRead = useCallback(
+    () => setNotifications((list) => list.map((n) => ({ ...n, read: true }))),
+    [],
+  );
+  const deleteNotifications = useCallback(
+    (ids) => setNotifications((list) => list.filter((n) => !ids.includes(n.id))),
+    [],
+  );
   const [accounts, setAccounts] = useState(seedAccounts);
   const [tags, setTags] = useState(DEFAULT_TAGS);
   const [contacts, setContacts] = useState(seedContacts);
@@ -2262,11 +2313,7 @@ export function DataProvider({ children }) {
       setJobs((list) => [...list, ...made]);
       return { jobs: made, results };
     },
-    [
-      automationCtx,
-      stageOf,
-      accounts,
-    ],
+    [automationCtx, stageOf, accounts],
   );
 
   /** Update a job (no automations). Returns the id. */
@@ -2316,12 +2363,7 @@ export function DataProvider({ children }) {
       setJobs((list) => list.map((j) => (j.id === id ? next : j)));
       return results;
     },
-    [
-      automationCtx,
-      stageOf,
-      jobs,
-      accounts,
-    ],
+    [automationCtx, stageOf, jobs, accounts],
   );
 
   const deleteJobs = useCallback(
@@ -2542,8 +2584,13 @@ export function DataProvider({ children }) {
       joined: today(),
     };
     setAccounts((list) => [rec, ...list]);
+      pushNotification("account", {
+     title: "New account registered",
+     body: `${rec.name} was registered`,
+     accountId: rec.id,
+     link: accountTabPath("overview", rec.id),    });
     return rec;
-  }, []);
+}, [pushNotification]);
 
   /** Delete tags and remove them from every account and contact. */
   const deleteTags = useCallback((ids) => {
@@ -2578,23 +2625,80 @@ export function DataProvider({ children }) {
     (ids) => setContacts((list) => list.filter((c) => !ids.includes(c.id))),
     [],
   );
-  /* ---------- Invoices (stored on each account: account.invoices) ---------- */
-  /** Every account's invoices, with accountId, accountName and the live state (draft / sent / overdue / paid). */
-  const invoices = useMemo(
+ 
+  const withLineItems = useCallback(
+    (inv) => {
+      const description = inv.description ?? inv.name ?? "";
+      if (inv.rows?.length) return { ...inv, description };
+      const total = Number(inv.total) || 0;
+      const t = invoiceTemplates.find((x) => x.id === inv.templateId);
+      const templateTotal = t?.rows?.length
+        ? calcTotals(t.rows, t.taxRate).totalAmount
+        : null;
+      if (
+        t &&
+        templateTotal !== null &&
+        Math.abs(templateTotal - total) < 0.01
+      ) {
+        return {
+          ...inv,
+          description,
+          rows: t.rows.map((r, n) => ({ ...r, id: `${inv.id}-row${n}` })),
+          taxRate: inv.taxRate ?? t.taxRate ?? 0,
+          paymentMode: inv.paymentMode || t.paymentMode,
+          clientNote: inv.clientNote ?? t.clientNote ?? "",
+        };
+      }
+      return {
+        ...inv,
+        description,
+        rows: [
+          {
+            id: `${inv.id}-row0`,
+            serviceId: null,
+            productName: description || "Services",
+            description: "",
+            rate: total,
+            qty: 1,
+            tax: false,
+            isDiscount: false,
+          },
+        ],
+        taxRate: inv.taxRate ?? 0,
+      };
+    },
+    [invoiceTemplates],
+  );
+
+  const invoicesBase = useMemo(
     () =>
       accounts.flatMap((a, i) =>
-        invoicesOf(a, invoiceTemplates, i).map((inv) => ({
-          ...inv,
-          accountId: a.id,
-          accountName: a.name,
-          state: invoiceStatus(inv),
-        })),
+        invoicesOf(a, invoiceTemplates, i).map((inv) => {
+          const full = withLineItems(inv);
+          return {
+            ...full,
+            accountId: a.id,
+            accountName: a.name,
+            state: invoiceStatus(full),
+          };
+        }),
       ),
-    [accounts, invoiceTemplates],
+    [accounts, invoiceTemplates, withLineItems],
   );
   /** The next free invoice number across all accounts, e.g. "INV-1029". */
-  const nextInvoiceNumber = useMemo(() => nextNumberOf(invoices), [invoices]);
+  const nextInvoiceNumber = useMemo(
+    () => nextNumberOf(invoicesBase),
+    [invoicesBase],
+  );
   /** Change the invoices of the given accounts: fn(list, account) → new list. */
+  // const updateAccountInvoices = (accountIds, fn) =>
+  //   setAccounts((list) =>
+  //     list.map((a, i) =>
+  //       accountIds.includes(a.id)
+  //         ? { ...a, invoices: fn(invoicesOf(a, invoiceTemplates, i), a) }
+  //         : a,
+  //     ),
+  //   );
   const updateAccountInvoices = useCallback(
     (accountIds, fn) =>
       setAccounts((list) =>
@@ -2606,7 +2710,6 @@ export function DataProvider({ children }) {
       ),
     [invoiceTemplates],
   );
-
   /**
    * Create (no id) or update (with id) an invoice. Shortcodes in the description are filled for the account,
    * the total is worked out from the line items, and the invoice moves if its account changed. Returns the saved invoice.
@@ -2616,7 +2719,9 @@ export function DataProvider({ children }) {
     (form, { send } = {}) => {
       const { accountName, state, ...data } = form;
       const account = accounts.find((a) => a.id === form.accountId);
-      const existing = form.id ? invoices.find((x) => x.id === form.id) : null;
+      const existing = form.id
+        ? invoicesBase.find((x) => x.id === form.id)
+        : null;
       const rec = {
         ...data,
         id: form.id || invoiceId(),
@@ -2643,8 +2748,10 @@ export function DataProvider({ children }) {
       );
       return rec;
     },
-    [accounts, invoices, nextInvoiceNumber, updateAccountInvoices],
-  );
+    // [accounts, invoicesBase, nextInvoiceNumber, invoiceTemplates],
+       [accounts, invoicesBase, nextInvoiceNumber, updateAccountInvoices],
+
+  ); // eslint-disable-line react-hooks/exhaustive-deps
   /** Create an invoice (send: true sends it). Returns the new invoice. */
   const createInvoice = useCallback(
     (form, { send } = {}) => saveInvoice({ ...form, id: undefined }, { send }),
@@ -2662,7 +2769,7 @@ export function DataProvider({ children }) {
       );
     },
     [updateAccountInvoices],
-  );
+  ); // eslint-disable-line react-hooks/exhaustive-deps
   /** Set the status of invoices: 'draft' | 'sent' | 'paid'. */
   const setInvoiceStatus = useCallback(
     (items, status) => {
@@ -2685,7 +2792,7 @@ export function DataProvider({ children }) {
       );
     },
     [updateAccountInvoices],
-  );
+  ); // eslint-disable-line react-hooks/exhaustive-deps
   /** Print an invoice (opens the browser's print dialog). */
   const printInvoice = useCallback(
     (inv) =>
@@ -2830,41 +2937,88 @@ export function DataProvider({ children }) {
   /* ---------- Team communication (Communication menu): channels + direct messages ---------- */
   // `me` is the signed-in person's name (from AuthContext), passed in by the page.
   const [teamChats, setTeamChats] = useState(seedTeamChats);
-  const updateChat = (id, fn) => setTeamChats((list) => list.map((c) => (c.id === id ? fn(c) : c)));
+  const updateChat = (id, fn) =>
+    setTeamChats((list) => list.map((c) => (c.id === id ? fn(c) : c)));
 
   /** Create a channel. members: names (empty = everyone). Returns the new channel. */
-  const createChannel = useCallback(({ name, description = "", members = [] }, me) => {
-    const now = new Date().toISOString();
-    const rec = {
-      id: chatId("tc"), type: "channel", name: channelSlug(name) || "new-channel", description: description.trim(),
-      members: members.length ? [...new Set([me, ...members])] : [], createdBy: me, createdAt: now,
-      messages: [], lastRead: { [me]: now },
-    };
-    setTeamChats((list) => [rec, ...list]);
-    return rec;
-  }, []);
+  const createChannel = useCallback(
+    ({ name, description = "", members = [] }, me) => {
+      const now = new Date().toISOString();
+      const rec = {
+        id: chatId("tc"),
+        type: "channel",
+        name: channelSlug(name) || "new-channel",
+        description: description.trim(),
+        members: members.length ? [...new Set([me, ...members])] : [],
+        createdBy: me,
+        createdAt: now,
+        messages: [],
+        lastRead: { [me]: now },
+      };
+      setTeamChats((list) => [rec, ...list]);
+      return rec;
+    },
+    [],
+  );
   /** Rename a channel, change its description or members. */
   const updateChannel = useCallback((id, changes) => {
-    updateChat(id, (c) => ({ ...c, ...changes, ...(changes.name !== undefined ? { name: channelSlug(changes.name) || c.name } : {}) }));
+    updateChat(id, (c) => ({
+      ...c,
+      ...changes,
+      ...(changes.name !== undefined
+        ? { name: channelSlug(changes.name) || c.name }
+        : {}),
+    }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   /** Delete a channel or direct message. */
-  const deleteTeamChat = useCallback((id) => setTeamChats((list) => list.filter((c) => c.id !== id)), []);
+  const deleteTeamChat = useCallback(
+    (id) => setTeamChats((list) => list.filter((c) => c.id !== id)),
+    [],
+  );
   /** Open the direct message with this person (creates it if needed). Returns the conversation. */
-  const openDirectMessage = useCallback((person, me) => {
-    const existing = teamChats.find((c) => c.type === "dm" && c.members.includes(person) && c.members.some((m) => isMe(m, me)));
-    if (existing) return existing;
-    const now = new Date().toISOString();
-    const rec = { id: chatId("tc"), type: "dm", name: "", description: "", members: [me, person], createdBy: me, createdAt: now, messages: [], lastRead: { [me]: now } };
-    setTeamChats((list) => [rec, ...list]);
-    return rec;
-  }, [teamChats]);
+  const openDirectMessage = useCallback(
+    (person, me) => {
+      const existing = teamChats.find(
+        (c) =>
+          c.type === "dm" &&
+          c.members.includes(person) &&
+          c.members.some((m) => isMe(m, me)),
+      );
+      if (existing) return existing;
+      const now = new Date().toISOString();
+      const rec = {
+        id: chatId("tc"),
+        type: "dm",
+        name: "",
+        description: "",
+        members: [me, person],
+        createdBy: me,
+        createdAt: now,
+        messages: [],
+        lastRead: { [me]: now },
+      };
+      setTeamChats((list) => [rec, ...list]);
+      return rec;
+    },
+    [teamChats],
+  );
   /** Send a message. Returns the message (or null for empty text). */
   const sendTeamMessage = useCallback((id, text, me) => {
     const body = (text || "").trim();
     if (!body) return null;
     const now = new Date().toISOString();
-    const m = { id: chatId("tm"), author: me, text: body, createdAt: now, reactions: {} };
-    updateChat(id, (c) => ({ ...c, messages: [...c.messages, m], lastRead: { ...c.lastRead, [me]: now } }));
+    const m = {
+      id: chatId("tm"),
+      author: me,
+      text: body,
+      createdAt: now,
+      reactions: {},
+    };
+    updateChat(id, (c) => ({
+      ...c,
+      messages: [...c.messages, m],
+      lastRead: { ...c.lastRead, [me]: now },
+    }));
     return m;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   /** Edit the text of a message. */
@@ -2872,11 +3026,19 @@ export function DataProvider({ children }) {
     const body = (text || "").trim();
     if (!body) return;
     const now = new Date().toISOString();
-    updateChat(id, (c) => ({ ...c, messages: c.messages.map((m) => (m.id === messageId ? { ...m, text: body, editedAt: now } : m)) }));
+    updateChat(id, (c) => ({
+      ...c,
+      messages: c.messages.map((m) =>
+        m.id === messageId ? { ...m, text: body, editedAt: now } : m,
+      ),
+    }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   /** Delete a message. */
   const deleteTeamMessage = useCallback((id, messageId) => {
-    updateChat(id, (c) => ({ ...c, messages: c.messages.filter((m) => m.id !== messageId) }));
+    updateChat(id, (c) => ({
+      ...c,
+      messages: c.messages.filter((m) => m.id !== messageId),
+    }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   /** Add or remove your reaction (emoji) on a message. */
   const toggleTeamReaction = useCallback((id, messageId, emoji, me) => {
@@ -2898,6 +3060,441 @@ export function DataProvider({ children }) {
     const now = new Date().toISOString();
     updateChat(id, (c) => ({ ...c, lastRead: { ...c.lastRead, [me]: now } }));
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const createChats = useCallback((accountIds, form, me = "You") => {
+    setAccounts((list) =>
+      list.map((a) =>
+        accountIds.includes(a.id)
+          ? {
+              ...a,
+              chats: [chatFromForm(form, a, me), ...(a.chats ?? demoChats(a))],
+            }
+          : a,
+      ),
+    );
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  
+
+  /* ---------- Payments (stored on each account: account.payments) ----------
+   * A payment pays parts of invoices (allocations) with money received and/or client credit. Only succeeded payments count:
+   * invoice paid = its allocations, balance = total − paid ('partial' when 0 < paid < total); client credit = added − applied.
+   */
+  /** Every account's payments (newest first). Accounts without saved payments get demo history. */
+  const payments = useMemo(() => {
+    const totalOf = (id) => invoicesBase.find((i) => i.id === id)?.total || 0;
+    const all = accounts.flatMap((a) =>
+      (
+        a.payments ??
+        demoPayments(
+          a,
+          invoicesBase.filter((i) => i.accountId === a.id),
+        )
+      ).map((p) => ({
+        ...normalizePayment(p, totalOf),
+        accountId: a.id,
+        accountName: a.name,
+      })),
+    );
+    return all.sort(
+      (x, y) =>
+        (y.date || "").localeCompare(x.date || "") ||
+        (y.createdAt || "").localeCompare(x.createdAt || ""),
+    );
+  }, [accounts, invoicesBase]);
+  /** Every account's invoices with paid · balance · state (draft / sent / overdue / partial / paid). */
+  const invoices = useMemo(
+    () => withPayments(invoicesBase, payments),
+    [invoicesBase, payments],
+  );
+  /** Client credit an account can still use. */
+  const creditOf = useCallback(
+    (accountId) => creditBalance(payments, accountId),
+    [payments],
+  );
+  // const savePaymentsOf = (accountId, fn) =>
+  //   setAccounts((list) =>
+  //     list.map((a) =>
+  //       a.id === accountId
+  //         ? {
+  //             ...a,
+  //             payments: fn(
+  //               payments
+  //                 .filter((p) => p.accountId === accountId)
+  //                 .map(({ accountName, ...p }) => p),
+  //             ),
+  //           }
+  //         : a,
+  //     ),
+  //   );
+  // const setRawStatus = (accountId, ids, status, date) =>
+  //   updateAccountInvoices([accountId], (list) =>
+  //     list.map((x) =>
+  //       ids.has(x.id)
+  //         ? { ...x, status, paidAt: status === "paid" ? date : undefined }
+  //         : x,
+  //     ),
+  //   );
+  const savePaymentsOf = useCallback(
+    (accountId, fn) =>
+      setAccounts((list) =>
+        list.map((a) =>
+          a.id === accountId
+            ? {
+                ...a,
+                payments: fn(
+                  payments
+                    .filter((p) => p.accountId === accountId)
+                    .map(({ accountName, ...p }) => p),
+                ),
+              }
+            : a,
+        ),
+      ),
+    [payments],
+  );
+  const setRawStatus = useCallback(
+    (accountId, ids, status, date) =>
+      updateAccountInvoices([accountId], (list) =>
+        list.map((x) =>
+          ids.has(x.id)
+            ? { ...x, status, paidAt: status === "paid" ? date : undefined }
+            : x,
+        ),
+      ),
+    [updateAccountInvoices],
+  );
+  /**
+   * Record an offline payment: { accountId, amount, method, date: 'YYYY-MM-DD', description, notifyClient, invoiceIds }.
+   * Pays the full balance of each chosen invoice (no partial here); anything over is kept as client credit.
+   * Returns the payment, or null if the amount doesn't cover the chosen invoices.
+   */
+  const recordOfflinePayment = useCallback(
+    (data, me = "You") => {
+      const ids = new Set(data.invoiceIds || []);
+      const settled = invoices.filter(
+        (i) =>
+          i.accountId === data.accountId && ids.has(i.id) && isSettleable(i),
+      );
+      const applied = round2(settled.reduce((s, i) => s + i.balance, 0));
+      const amount = round2(data.amount);
+      if (!data.accountId || amount <= 0 || amount < applied) return null;
+      const now = new Date().toISOString();
+      const date = data.date || now.slice(0, 10);
+      const rec = {
+        id: paymentId(),
+        number: nextPaymentNumber(payments),
+        accountId: data.accountId,
+        status: "succeeded",
+        amount,
+        applied,
+        creditApplied: 0,
+        credit: round2(amount - applied),
+        refund: 0,
+        allocations: settled.map((i) => ({
+          invoiceId: i.id,
+          amount: i.balance,
+        })),
+        invoiceIds: settled.map((i) => i.id),
+        method: data.method || "Cash",
+        provider: "Offline",
+        date,
+        description: (data.description || "").trim(),
+        notifyClient: !!data.notifyClient,
+        recordedBy: me,
+        createdAt: now,
+      };
+      if (settled.length)
+        setRawStatus(data.accountId, new Set(rec.invoiceIds), "paid", date);
+      savePaymentsOf(data.accountId, (list) => [rec, ...list]);
+      return rec;
+    },
+    [invoices, payments, setRawStatus, savePaymentsOf],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /**
+   * Pay one invoice: { creditApplied, amount, method, date, description, notifyClient }.
+   * Credit applied (≤ the account's credit) + amount to pay (≤ what's left) go to the invoice.
+   * Less than the balance → Partially paid; the full balance → Paid. Returns the payment, or null if nothing is paid.
+   */
+  const payInvoice = useCallback(
+    (invoice, data = {}, me = "You") => {
+      const inv = invoices.find((i) => i.id === invoice.id);
+      if (!inv || !isSettleable(inv)) return null;
+      const credit = Math.max(
+        0,
+        Math.min(
+          round2(data.creditApplied || 0),
+          creditBalance(payments, inv.accountId),
+          inv.balance,
+        ),
+      );
+      const amount = Math.max(
+        0,
+        Math.min(round2(data.amount || 0), round2(inv.balance - credit)),
+      );
+      const total = round2(credit + amount);
+      if (total <= 0) return null;
+      const now = new Date().toISOString();
+      const date = data.date || now.slice(0, 10);
+      const rec = {
+        id: paymentId(),
+        number: nextPaymentNumber(payments),
+        accountId: inv.accountId,
+        status: "succeeded",
+        amount,
+        creditApplied: credit,
+        credit: 0,
+        applied: total,
+        refund: 0,
+        allocations: [{ invoiceId: inv.id, amount: total }],
+        invoiceIds: [inv.id],
+        method: amount > 0 ? data.method || "Cash" : "Client credit",
+        provider: amount > 0 ? "Offline" : "Client credit",
+        date,
+        description: (data.description || `Payment for ${inv.number}`).trim(),
+        notifyClient: !!data.notifyClient,
+        recordedBy: me,
+        createdAt: now,
+      };
+      if (total >= inv.balance)
+        setRawStatus(inv.accountId, new Set([inv.id]), "paid", date);
+      savePaymentsOf(inv.accountId, (list) => [rec, ...list]);
+      return rec;
+    },
+    [invoices, payments, setRawStatus, savePaymentsOf],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
+
+  /** The invoices a payment paid go back to unpaid (their balance is worked out again from the other payments). */
+  // const releaseInvoices = (p) => {
+  //   if (p.invoiceIds?.length)
+  //     setRawStatus(p.accountId, new Set(p.invoiceIds), "sent");
+  // };
+    const releaseInvoices = useCallback(
+    (p) => {
+      if (p.invoiceIds?.length)
+        setRawStatus(p.accountId, new Set(p.invoiceIds), "sent");
+    },
+    [setRawStatus],
+  );
+  /** Refund a payment: kept in the history as Refunded (refund = the money received); its invoices and credit go back. */
+  const refundPayment = useCallback(
+    (p) => {
+      releaseInvoices(p);
+      savePaymentsOf(p.accountId, (list) =>
+        list.map((x) =>
+          x.id === p.id
+            ? {
+                ...x,
+                status: "refunded",
+                refund: x.amount,
+                refundedAt: new Date().toISOString(),
+              }
+            : x,
+        ),
+      );
+    },
+    [releaseInvoices, savePaymentsOf],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Void a payment: kept in the history as Voided; its invoices and credit go back. */
+  const voidPayment = useCallback(
+    (p) => {
+      releaseInvoices(p);
+      savePaymentsOf(p.accountId, (list) =>
+        list.map((x) =>
+          x.id === p.id
+            ? { ...x, status: "voided", voidedAt: new Date().toISOString() }
+            : x,
+        ),
+      );
+    },
+    [releaseInvoices, savePaymentsOf],
+  ); // eslint-disable-line react-hooks/exhaustive-deps
+  /* ---------- Team (Templates → Teams & Plans): members, access rights, groups ---------- */
+  // const auth = useAuth() || {};
+  // const signedIn = auth.user || null; // the admin who is logged in
+
+  
+  const [teamMembers, setTeamMembers] = useState(seedTeam);
+  const [groups, setGroups] = useState(seedGroups);
+  /** Members who can be assigned: active + invited (not deactivated). */
+  const activeTeamMembers = useMemo(
+    () => teamMembers.filter((m) => m.status !== "deactivated"),
+    [teamMembers],
+  );
+  /**
+   * Options for every "assignees / team / members" picker — same shape as TEAM_MEMBERS ({ value, label, meta }):
+   * the logged-in admin first, then active team members only.
+   */
+  const teamOptions = useMemo(() => {
+    const admin =
+      signedIn?.name && !activeTeamMembers.some((m) => m.name === signedIn.name)
+        ? [{ value: "admin", label: signedIn.name, meta: "Admin (you)" }]
+        : [];
+    return [
+      ...admin,
+      ...activeTeamMembers.map((m) => ({
+        value: m.id,
+        label: m.name,
+        meta: m.status === "invited" ? "Invited" : m.title || "Employee",
+      })),
+    ];
+  }, [activeTeamMembers, signedIn]);
+  const groupOf = useCallback(
+    (memberId) =>
+      groups.find(
+        (g) => g.leaderId === memberId || g.memberIds.includes(memberId),
+      ) || null,
+    [groups],
+  );
+
+  /** Invite a team member: { firstName, middleName, lastName, email, role, permissions }. Returns { member } or { error }. */
+  const inviteTeamMember = useCallback(
+    (form) => {
+      const email = (form.email || "").trim().toLowerCase();
+      if (!(form.firstName || "").trim() || !email)
+        return { error: "First name and Email are required" };
+      if (
+        teamMembers.some((m) => m.email.toLowerCase() === email) ||
+        (signedIn?.email || "").toLowerCase() === email
+      )
+        return { error: "Someone with this email is already on the team" };
+      const rec = {
+        id: teamId("u"),
+        firstName: form.firstName.trim(),
+        middleName: (form.middleName || "").trim(),
+        lastName: (form.lastName || "").trim(),
+        email,
+        role: form.role || "employee",
+        status: "invited",
+        title: "Employee",
+        permissions: { ...emptyPermissions(), ...(form.permissions || {}) },
+        invitedAt: new Date().toISOString(),
+      };
+      rec.name = fullName(rec);
+      setTeamMembers((list) => [rec, ...list]);
+      return { member: rec };
+    },
+    [teamMembers, signedIn],
+  );
+  /** Update a team member's names, role and access rights (the email stays). Returns { member } or { error }. */
+  const updateTeamMember = useCallback((id, form) => {
+    if (!(form.firstName || "").trim())
+      return { error: "First name is required" };
+    let rec = null;
+    setTeamMembers((list) =>
+      list.map((m) => {
+        if (m.id !== id) return m;
+        rec = {
+          ...m,
+          firstName: form.firstName.trim(),
+          middleName: (form.middleName || "").trim(),
+          lastName: (form.lastName || "").trim(),
+          role: form.role || m.role,
+          permissions: { ...emptyPermissions(), ...(form.permissions || {}) },
+        };
+        rec.name = fullName(rec);
+        return rec;
+      }),
+    );
+    return { member: rec || { id } };
+  }, []);
+  /**
+   * Deactivate members: they leave their group and disappear from every picker.
+   * A group's leader can't be deactivated until the group has another leader → { blocked: [{ member, group }] }.
+   */
+  const deactivateTeamMembers = useCallback(
+    (ids) => {
+      const blocked = groups
+        .filter((g) => ids.includes(g.leaderId))
+        .map((g) => ({
+          member: teamMembers.find((m) => m.id === g.leaderId),
+          group: g,
+        }));
+      const ok = ids.filter((id) => !blocked.some((b) => b.member?.id === id));
+      if (ok.length) {
+        const now = new Date().toISOString();
+        setTeamMembers((list) =>
+          list.map((m) =>
+            ok.includes(m.id)
+              ? { ...m, status: "deactivated", deactivatedAt: now }
+              : m,
+          ),
+        );
+        setGroups((list) =>
+          list.map((g) => ({
+            ...g,
+            memberIds: g.memberIds.filter((id) => !ok.includes(id)),
+          })),
+        );
+      }
+      return { deactivated: ok, blocked };
+    },
+    [groups, teamMembers],
+  );
+  /** Reactivate members (they can be assigned again). */
+  const reactivateTeamMembers = useCallback((ids) => {
+    setTeamMembers((list) =>
+      list.map((m) =>
+        ids.includes(m.id)
+          ? { ...m, status: "active", deactivatedAt: undefined }
+          : m,
+      ),
+    );
+  }, []);
+  /** Delete deactivated members for good. */
+  const deleteTeamMembers = useCallback((ids) => {
+    setTeamMembers((list) =>
+      list.filter((m) => !(ids.includes(m.id) && m.status === "deactivated")),
+    );
+  }, []);
+
+  /** Create a group: { name, leaderId, memberIds } (members without a group). Returns { group } or { error }. */
+  const createGroup = useCallback(
+    ({ name, leaderId, memberIds = [] }) => {
+      if (!(name || "").trim() || !leaderId)
+        return { error: "Group name and leader are required." };
+      const taken = [leaderId, ...memberIds].filter((id) => groupOf(id));
+      if (taken.length)
+        return { error: "Some people are already in another group." };
+      const rec = {
+        id: teamId("grp"),
+        name: name.trim(),
+        leaderId,
+        memberIds: memberIds.filter((id) => id !== leaderId),
+        createdAt: new Date().toISOString(),
+      };
+      setGroups((list) => [...list, rec]);
+      return { group: rec };
+    },
+    [groupOf],
+  );
+  /** Update a group's name and members (the leader stays). Returns { group } or { error }. */
+  const updateGroup = useCallback(
+    (id, { name, memberIds = [] }) => {
+      if (!(name || "").trim()) return { error: "Group name is required." };
+      const g = groups.find((x) => x.id === id);
+      const taken = memberIds.filter((m) => {
+        const other = groupOf(m);
+        return other && other.id !== id;
+      });
+      if (taken.length)
+        return { error: "Some people are already in another group." };
+      const rec = {
+        ...g,
+        name: name.trim(),
+        memberIds: memberIds.filter((m) => m !== g.leaderId),
+      };
+      setGroups((list) => list.map((x) => (x.id === id ? rec : x)));
+      return { group: rec };
+    },
+    [groups, groupOf],
+  );
+  /** Delete a group (its people stay on the team, without a group). */
+  const deleteGroup = useCallback(
+    (id) => setGroups((list) => list.filter((g) => g.id !== id)),
+    [],
+  );
   const value = useMemo(
     () => ({
       accounts,
@@ -2996,7 +3593,42 @@ export function DataProvider({ children }) {
       updateTask,
       saveTask,
       deleteTasks,
-      setTaskStatus, teamChats, createChannel, updateChannel, deleteTeamChat, openDirectMessage, sendTeamMessage, editTeamMessage, deleteTeamMessage, toggleTeamReaction, markTeamChatRead,
+      createChats,
+      payments,
+      recordOfflinePayment,
+      payInvoice,
+      refundPayment,
+      voidPayment,
+      creditOf,
+      setTaskStatus,
+      teamChats,
+      createChannel,
+      updateChannel,
+      deleteTeamChat,
+      openDirectMessage,
+      sendTeamMessage,
+      editTeamMessage,
+      deleteTeamMessage,
+      toggleTeamReaction,
+      markTeamChatRead,
+      teamMembers,
+      activeTeamMembers,
+      teamOptions,
+      groups,
+      groupOf,
+      inviteTeamMember,
+      updateTeamMember,
+      deactivateTeamMembers,
+      reactivateTeamMembers,
+      deleteTeamMembers,
+      createGroup,
+      updateGroup,
+      deleteGroup,      notifications,
+      unreadNotifications,
+      pushNotification,
+      markNotificationsRead,
+      markAllNotificationsRead,
+      deleteNotifications,
     }),
     [
       accounts,
@@ -3092,10 +3724,45 @@ export function DataProvider({ children }) {
       updateTask,
       saveTask,
       deleteTasks,
-      setTaskStatus, teamChats, createChannel, updateChannel, deleteTeamChat, openDirectMessage, sendTeamMessage, editTeamMessage, deleteTeamMessage, toggleTeamReaction, markTeamChatRead,
+      createChats,
+      payments,
+      recordOfflinePayment,
+      payInvoice,
+      refundPayment,
+      voidPayment,
+      creditOf,
+      setTaskStatus,
+      teamChats,
+      createChannel,
+      updateChannel,
+      deleteTeamChat,
+      openDirectMessage,
+      sendTeamMessage,
+      editTeamMessage,
+      deleteTeamMessage,
+      toggleTeamReaction,
+      markTeamChatRead,
+      teamMembers,
+      activeTeamMembers,
+      teamOptions,
+      groups,
+      groupOf,
+      inviteTeamMember,
+      updateTeamMember,
+      deactivateTeamMembers,
+      reactivateTeamMembers,
+      deleteTeamMembers,
+      createGroup,
+      updateGroup,
+      deleteGroup,      notifications,
+      unreadNotifications,
+      pushNotification,
+      markNotificationsRead,
+      markAllNotificationsRead,
+      deleteNotifications,
     ],
   );
-    return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
 }
 
 export const useData = () => useContext(DataContext);

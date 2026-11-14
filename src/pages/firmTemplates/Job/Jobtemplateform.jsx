@@ -19,14 +19,14 @@ import { SimpleTooltip } from '../../../components/ui/tooltip';
 import { ToastBridge } from '../../../components/ui/sonner';
 import { EmptyState, SectionHeading } from '../../../components/page';
 import { useData } from '../../../context/DataContext';
-import { TEAM_MEMBERS } from '../../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../../data/sampleData';
 import { accountShortcuts } from '../../../data/shortcodes';
 import { DURATION_OPTIONS, TASK_PRIORITIES } from '../../../data/taskTemplates';
 import { CLIENT_DESCRIPTION_LIMIT, emptyJobTemplate } from '../../../data/jobtemplates';
 import { cn } from 'lib/utils';
 
 const LIST_PATH = '/firmtemp/templates/jobs';
-const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
+// const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
 const LIMIT = CLIENT_DESCRIPTION_LIMIT || 250;
 const clone = (o) => JSON.parse(JSON.stringify(o));
 /** Works whether a field calls onChange(text) or onChange(event). */
@@ -177,6 +177,8 @@ export default function JobTemplateForm() {
 }
 
 function FormPage({ editingId }) {
+  const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+ const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
   const navigate = useNavigate();
   const { jobTemplates = [], saveJobTemplate, deleteJobTemplates, clientFacingJobs, clientStatuses } = useData();
   const existing = editingId ? jobTemplates.find((t) => String(t.id) === String(editingId)) : null;

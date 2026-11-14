@@ -105,6 +105,15 @@ export default function FolderTemplates() {
         </>}
         footer={filtered.length > 0 && <Pagination {...paging} label="templates" />}
       >
+         <BulkBar count={selection.count} total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <button type="button" className={barButton} onClick={() => { duplicateFolderTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
+          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
         <Table className="min-w-[760px]">
           <TableHeader>
             <TableRow>
@@ -174,15 +183,7 @@ export default function FolderTemplates() {
         </Table>
       </DataCard>
 
-      <BulkBar count={selection.count} total={filtered.length}
-        onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
-        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-        actions={<>
-          <button type="button" className={barButton} onClick={() => { duplicateFolderTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
-          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
-          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
-        </>}
-      />
+     
 
       {confirm && (
         <Modal title={confirm.length === 1 ? `Delete “${confirm[0].templatename}”?` : `Delete ${confirm.length} templates?`}

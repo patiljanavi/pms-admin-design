@@ -126,6 +126,15 @@ export default function InvoiceTemplates() {
         </>}
         footer={filtered.length > 0 && <Pagination {...paging} label="templates" />}
       >
+        <BulkBar count={selection.count} total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <button type="button" className={barButton} onClick={() => { duplicateInvoiceTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
+          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
         <Table className="min-w-[900px]">
           <TableHeader>
             <TableRow>
@@ -188,15 +197,7 @@ export default function InvoiceTemplates() {
         </Table>
       </DataCard>
 
-      <BulkBar count={selection.count} total={filtered.length}
-        onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
-        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-        actions={<>
-          <button type="button" className={barButton} onClick={() => { duplicateInvoiceTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
-          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
-          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
-        </>}
-      />
+      
 
       {preview && <InvoicePreview form={preview} onClose={() => setPreview(null)} />}
       {confirm && (

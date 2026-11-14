@@ -319,7 +319,7 @@ import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../../components/ui/select';
 import { useData } from '../../../context/DataContext';
-import { TEAM_MEMBERS } from '../../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../../data/sampleData';
 import {
   DURATION_OPTIONS, TASK_PRIORITIES, TASK_STATUSES, describeDates, emptyTaskTemplate,
 } from '../../../data/taskTemplates';
@@ -330,7 +330,7 @@ import {
 } from '../templateKit';
 
 const LIST_PATH = '/firmtemp/templates/tasks';
-const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label })); // assignees are stored by name
+// const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label })); // assignees are stored by name
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 /**
@@ -344,6 +344,8 @@ export default function TaskTemplateForm() {
 }
 
 function FormPage({ editingId }) {
+   const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+ const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
   const navigate = useNavigate();
   const data = useData();
   const { taskTemplates = [], saveTaskTemplate, deleteTaskTemplates, tags = [], createTag } = data;

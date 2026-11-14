@@ -7,13 +7,13 @@ import { Alert, AlertDescription, AlertTitle } from '../ui/alert';
 import { Button } from '../ui/button';
 import { SimpleTooltip } from '../ui/tooltip';
 import { useData } from '../../context/DataContext';
-import { TEAM_MEMBERS } from '../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../data/sampleData';
 import { contactShortcuts } from '../../data/shortcodes';
 import { calcTotals, money, newRow } from '../../data/invoiceTemplates';
 import { INVOICE_DESCRIPTION_LIMIT, ISSUE_OPTIONS, TIME_OPTIONS, emptyInvoice } from '../../data/proposalTemplates';
 import { templateOptionsFrom } from '../../data/statusOptions';
 
-const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
+// const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
 const teamOption = (o) => (
   <span className="flex flex-1 items-center gap-2.5"><Avatar text={initials(o.label)} size="sm" /><span className="font-medium">{o.label}</span></span>
 );
@@ -36,6 +36,8 @@ function OptionCard({ value, current, onPick, icon, title, description }) {
 
 /** One invoice inside the proposal. */
 function InvoiceCard({ invoice, index, canRemove, onChange, onRemove, errors = {}, templateOptions, invoiceTemplates }) {
+   const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+ const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
   const set = (changes) => onChange({ ...invoice, ...changes });
   const pickTemplate = (id) => {
     const tpl = invoiceTemplates.find((t) => String(t.id) === id);

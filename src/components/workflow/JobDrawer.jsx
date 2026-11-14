@@ -13,13 +13,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '.
 import { cn } from 'lib/utils';
 import { useData } from '../../context/DataContext';
 import { useAuth } from '../../context/AuthContext';
-import { TEAM_MEMBERS } from '../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../data/sampleData';
 import { accountShortcuts } from '../../data/shortcodes';
 import { DURATION_OPTIONS, TASK_PRIORITIES } from '../../data/taskTemplates';
 import { statusOptionsFrom } from '../../data/statusOptions';
 import { fillShortcodes } from '../../data/accountChats';
 
-const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
+// const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
 const NO_TEMPLATE = '__none__';
 
 /** Label + control + hint/error, laid out the same everywhere in this drawer. */
@@ -103,6 +103,9 @@ const fromTemplate = (tpl) => (tpl ? {
  *          In this mode onDone(message) receives the message string (that caller shows it as a toast).
  */
 export default function JobDrawer({ jobId, pipelineId, stageId, accountIds = [], job: jobProp = null, onDone, onClose }) {
+  const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+ const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
+ 
   const { accounts = [], pipelines = [], jobs = [], jobTemplates = [], clientFacingJobs, clientStatuses, createJobs, saveJob, moveJob } = useData();
   const { user } = useAuth() || {};
   const me = user?.name || 'You';

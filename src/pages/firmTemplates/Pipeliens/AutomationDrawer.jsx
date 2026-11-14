@@ -15,11 +15,11 @@ import { cn } from 'lib/utils';
 import AutomationTypeMenu, { automationIcon } from './AutomationTypeMenu';
 import ColorStatusSelect from './ColorStatusSelect';
 import { useData } from '../../../context/DataContext';
-import { TEAM_MEMBERS } from '../../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../../data/sampleData';
 import { CLIENT_STATUS_DESCRIPTION_LIMIT, automationInfo, newAutomation } from '../../../data/pipelinesdata';
 import { statusOptionsFrom, templateOptionsFrom } from '../../../data/statusOptions';
 
-const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
+// const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
 const clone = (o) => JSON.parse(JSON.stringify(o));
 
 /** Template options for an automation type, read from DataContext. */
@@ -60,6 +60,8 @@ export function AutomationIcon({ type, className }) {
  * Props: stageNumber · stageName · automations (what the drawer starts with) · saved (the stage's saved automations) · onSave(list) · onClose()
  */
 export default function AutomationDrawer({ stageNumber, stageName, automations: initialList = [], saved, onSave, onClose }) {
+   const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+ const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
   const savedList = saved ?? initialList;
   const isEdit = savedList.length > 0;
   const { tags, statuses, clientFacingJobs, templatesFor } = useAutomationSources();

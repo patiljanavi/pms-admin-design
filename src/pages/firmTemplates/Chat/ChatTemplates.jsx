@@ -14,13 +14,15 @@ import { Button } from '../../../components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../../../components/ui/table';
 import { ToastBridge } from '../../../components/ui/sonner';
 import { useData } from '../../../context/DataContext';
-import { SENDERS } from '../../../data/emailtemplates';
+// import { SENDERS } from '../../../data/emailtemplates';
 import { Dash, ListHeader, NameCell, PersonCell, SelectFilter, SortHead, Tip, fmtDate, sortRows } from '../templateKit';
 
 const LIST_PATH = '/firmtemp/templates/chats';
 
 /** Firm Templates → Chats: table of chat templates. New / Edit open ChatTemplateForm (same as Tasks, Emails, Jobs). */
 export default function ChatTemplates() {
+  const { teamOptions = [] } = useData();
+ const SENDERS = teamOptions.map((m) => ({ value: m.value, label: m.label }));   
   const navigate = useNavigate();
   const { state: routeState, pathname } = useLocation();
   const { chatTemplates = [], duplicateChatTemplates, deleteChatTemplates } = useData();
@@ -112,6 +114,15 @@ export default function ChatTemplates() {
         </>}
         footer={filtered.length > 0 && <Pagination {...paging} label="templates" />}
       >
+          <BulkBar count={selection.count} total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <button type="button" className={barButton} onClick={() => { duplicateChatTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
+          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
         <Table className="min-w-[1000px]">
           <TableHeader>
             <TableRow>
@@ -177,15 +188,7 @@ export default function ChatTemplates() {
         </Table>
       </DataCard>
 
-      <BulkBar count={selection.count} total={filtered.length}
-        onSelectAll={() => selection.setMany(filtered.map((t) => t.id), true)} onClear={selection.clear}
-        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-        actions={<>
-          <button type="button" className={barButton} onClick={() => { duplicateChatTemplates([...selection.ids]); notify(`Duplicated ${selection.count} template${selection.count > 1 ? 's' : ''}`); selection.clear(); }}><Copy aria-hidden="true" />Duplicate</button>
-          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
-          <button type="button" className={barDanger} onClick={() => setConfirm(selected)}><Trash2 aria-hidden="true" />Delete</button>
-        </>}
-      />
+    
 
       {confirm && (
         <Modal title={confirm.length === 1 ? `Delete “${confirm[0].templateName}”?` : `Delete ${confirm.length} templates?`}

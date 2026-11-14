@@ -22,7 +22,7 @@ import { DataCard, EmptyState, PageHeader, SearchInput, StatCard } from '../../c
 import { cn } from 'lib/utils';
 import { useData } from '../../context/DataContext';
 import { WORKFLOW_PIPELINES_PATH, accountTabPath } from '../../config';
-import { TEAM_MEMBERS } from '../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../data/sampleData';
 import { daysInStage, isOverdue } from '../../data/jobs';
 
 const PRIORITY_RANK = { Urgent: 0, High: 1, Medium: 2, Low: 3 };
@@ -50,6 +50,8 @@ function SortHead({ label, col, sort, setSort, className }) {
  * Links: ?pipeline=<id>&account=<id> pre-set filters; ?new=job opens Create Job.
  */
 export default function AllJobs() {
+   const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+// +  const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
   const navigate = useNavigate();
   const [params, setParams] = useSearchParams();
   const { jobs = [], pipelines = [], accounts = [], saveJob, deleteJobs } = useData();
@@ -248,6 +250,23 @@ export default function AllJobs() {
             )}
           </div>
         ) : (
+          <>
+          <BulkBar count={selection.count} total={filtered.length}
+        onSelectAll={() => selection.setMany(filtered.map((j) => j.id), true)} onClear={selection.clear}
+        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
+        actions={<>
+          <BarSelect label="Assign" value="" onChange={bulkAssign} options={[{ value: '', label: 'Choose…' }, ...TEAM_MEMBERS.map((m) => m.label)]} />
+          {samePipeline
+            ? <BarSelect label="Move to stage" value="" onChange={bulkMove} options={[{ value: '', label: 'Choose…' }, ...samePipeline.stages.map((s, i) => ({ value: s.id, label: `${i + 1}. ${s.name}${s.automations?.length ? ' ⚡' : ''}` }))]} />
+            : (
+              <SimpleTooltip label="Select jobs from one pipeline to move them">
+                <span className="inline-flex h-8 items-center gap-1.5 px-1 text-xs text-muted-foreground"><Move className="size-3.5" aria-hidden="true" />Move: pick one pipeline</span>
+              </SimpleTooltip>
+            )}
+          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
+          <button type="button" className={barDanger} onClick={() => setConfirmDelete(selected)}><Trash2 aria-hidden="true" />Delete</button>
+        </>}
+      />
           <Table aria-label="Jobs" className="min-w-[1100px]">
             <TableHeader>
               <TableRow>
@@ -341,25 +360,11 @@ export default function AllJobs() {
               )}
             </TableBody>
           </Table>
+          </>
         )}
       </DataCard>
 
-      <BulkBar count={selection.count} total={filtered.length}
-        onSelectAll={() => selection.setMany(filtered.map((j) => j.id), true)} onClear={selection.clear}
-        filters={<SelectedOnlyFilter checked={selectedOnly} onChange={(v) => { setSelectedOnly(v); setPage(1); }} />}
-        actions={<>
-          <BarSelect label="Assign" value="" onChange={bulkAssign} options={[{ value: '', label: 'Choose…' }, ...TEAM_MEMBERS.map((m) => m.label)]} />
-          {samePipeline
-            ? <BarSelect label="Move to stage" value="" onChange={bulkMove} options={[{ value: '', label: 'Choose…' }, ...samePipeline.stages.map((s, i) => ({ value: s.id, label: `${i + 1}. ${s.name}${s.automations?.length ? ' ⚡' : ''}` }))]} />
-            : (
-              <SimpleTooltip label="Select jobs from one pipeline to move them">
-                <span className="inline-flex h-8 items-center gap-1.5 px-1 text-xs text-muted-foreground"><Move className="size-3.5" aria-hidden="true" />Move: pick one pipeline</span>
-              </SimpleTooltip>
-            )}
-          <button type="button" className={barButton} onClick={() => exportCsv(selected)}><Download aria-hidden="true" />Export</button>
-          <button type="button" className={barDanger} onClick={() => setConfirmDelete(selected)}><Trash2 aria-hidden="true" />Delete</button>
-        </>}
-      />
+      
 
       {confirmDelete && (
         <Modal title={`Delete ${confirmDelete.length} job${confirmDelete.length > 1 ? 's' : ''}?`} description="These jobs are removed from their pipelines." onClose={() => setConfirmDelete(null)}

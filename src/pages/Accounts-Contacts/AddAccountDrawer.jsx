@@ -8,10 +8,10 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../../components/ui/select';
 import { SimpleTooltip } from '../../components/ui/tooltip';
-import { TEAM_MEMBERS } from '../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../data/sampleData';
 import TagChip, { chipStyle } from '../../components/TagChip';
 import { cn } from 'lib/utils';
-
+import { useData } from '../../context/DataContext';
 const STEPS = [
   { label: 'Account', hint: 'Name, company, team and tags' },
   { label: 'Contacts', hint: 'People you will work with' },
@@ -55,6 +55,7 @@ function FormSection({ title, description, children, action }) {
 
 /** Add account — opens as a right-side drawer, like the account view. */
 export default function AddAccountDrawer({ onClose, onSave, tags: tagOptions = [], onCreateTag }) {
+ const { teamOptions: TEAM_MEMBERS = [] } = useData(); 
   const [step, setStep] = useState(0);
   const [account, setAccount] = useState({ name: '', company: '', team: [], tags: [] });
   const [contacts, setContacts] = useState([newContact(true)]);

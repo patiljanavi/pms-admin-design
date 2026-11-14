@@ -5,12 +5,12 @@ import { Avatar, Toggle, cx, initials } from '../ui';
 import { Checkbox } from '../ui/checkbox';
 import { cn } from 'lib/utils';
 import { useData } from '../../context/DataContext';
-import { TEAM_MEMBERS } from '../../data/sampleData';
+// import { TEAM_MEMBERS } from '../../data/sampleData';
 import { accountShortcuts } from '../../data/shortcodes';
 import { applyProposalTemplate } from '../../data/accountProposals';
 import { fillShortcodes } from '../../data/accountChats';
 
-const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
+// const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
 
 /** A step on / off card ("Introduction Step", "Terms Step", …). */
 function StepCard({ title, description, checked, onChange, note }) {
@@ -36,6 +36,8 @@ function StepCard({ title, description, checked, onChange, note }) {
  *   formData · updateFormData(section, changes) · setFormData(fn) · stepErrors
  */
 export default function AccountGeneralStep({ formData, updateFormData, setFormData, stepErrors = {} }) {
+  const { teamOptions: TEAM_MEMBERS = [] } = useData();   // the logged-in user first, then active team members
+const TEAM_OPTIONS = TEAM_MEMBERS.map((m) => ({ ...m, value: m.label }));
   const { accounts = [], proposalTemplates = [] } = useData();
   const g = formData.general;
   const set = (field, value) => updateFormData('general', { [field]: value });
